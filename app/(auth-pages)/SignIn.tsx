@@ -53,7 +53,7 @@ const SignIn = () => {
       return;
     }
 
-    // No backend/Firebase here – just continue into the app
+    // No backend/Firebase here – just continue into the application     
     router.replace("/(tabs)");
   };
 
