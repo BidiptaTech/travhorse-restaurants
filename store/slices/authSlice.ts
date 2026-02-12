@@ -1,0 +1,54 @@
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { apiUrl } from "@/constants/api";
+
+/** Login API endpoint (POST). */
+export const AUTH_LOGIN_ENDPOINT = apiUrl("restaurant-login");
+
+/** Logout API endpoint (POST). */
+export const AUTH_LOGOUT_ENDPOINT = apiUrl("restaurant-logout");
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+}
+
+const initialState: AuthState = {
+  user: null,
+  token: null,
+  isAuthenticated: false,
+};
+
+const authSlice = createSlice({
+  name: "auth",
+  initialState,
+  reducers: {
+    setCredentials: (
+      state,
+      action: PayloadAction<{ user: User; token: string }>
+    ) => {
+      state.user = action.payload.user;
+      state.token = action.payload.token;
+      state.isAuthenticated = true;
+      console.log("[authSlice] login data stored:", {
+        user: state.user,
+        token: state.token ? `${state.token.slice(0, 20)}...` : null,
+        isAuthenticated: state.isAuthenticated,
+      });
+    },
+    signOut: (state) => {
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
+    },
+  },
+});
+
+export const { setCredentials, signOut } = authSlice.actions;
+export default authSlice.reducer;

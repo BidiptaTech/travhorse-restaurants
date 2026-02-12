@@ -1,35 +1,35 @@
-const onBoardingSliderImg1 = require("../assets/images/phone-img-1.jpg");
-const onBoardingSliderImg2 = require("../assets/images/phone-img-2.jpg");
-const onBoardingSliderImg3 = require("../assets/images/phone-img-3.jpg");
-const onBoardingSliderImg4 = require("../assets/images/phone-img-4.jpg");
+const onBoardingSliderImg1 = require("../assets/images/img-1.png");
+const onBoardingSliderImg2 = require("../assets/images/img-3.png");
+const onBoardingSliderImg3 = require("../assets/images/img-4.png");
+const onBoardingSliderImg4 = require("../assets/images/img-2.png");
 
 export const onbordingSliderData = [
   {
     id: 1,
     img: onBoardingSliderImg1,
-    title: "Manage Your Guest Trips Effortlessly",
+    title: "Scan Voucher QR Codes Instantly",
     description:
-      "Access complete guest itineraries, schedules, and updates — all in one place to ensure a smooth experience.",
+      "Quickly scan and validate guest vouchers using your device camera. Verify tickets in seconds and ensure smooth check-ins at your restaurant.",
   },
   {
     id: 2,
     img: onBoardingSliderImg2,
-    title: "Stay Synced with Real-Time Itineraries",
+    title: "Validate Tickets Securely",
     description:
-      "Track every guest activity, manage timings, and get instant notifications for any changes or updates.",
+      "Automatically verify that vouchers belong to your restaurant account. Get instant confirmation when tickets are successfully redeemed.",
   },
   {
     id: 3,
     img: onBoardingSliderImg3,
-    title: "Coordinate Seamlessly with Your Team",
+    title: "Track Your Scans",
     description:
-      "Share schedules, assign tasks, and collaborate efficiently with fellow guides and coordinators.",
+      "View all scanned tickets in one place. Keep a complete history of validations and easily manage today's scans and past records.",
   },
   {
     id: 4,
     img: onBoardingSliderImg4,
-    title: "Deliver Exceptional Guest Experiences",
+    title: "Streamline Guest Experience",
     description:
-      "Stay organized, informed, and ready to assist — ensuring every guest enjoys a flawless journey.",
+      "Process vouchers efficiently, reduce wait times, and provide seamless service. Everything you need to manage restaurant ticket validations.",
   },
 ];

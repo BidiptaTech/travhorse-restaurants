@@ -21,11 +21,13 @@ import Pagination from "@/components/ui/Pagination";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColorScheme } from "nativewind";
+import { useAppSelector } from "@/store/hooks";
 
 const star = require("@/assets/images/star2.png");
 
 const OnBoardingSlider = () => {
   const { colorScheme } = useColorScheme();
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const flatListRef = useAnimatedRef<any>();
   const x = useSharedValue(0);
@@ -89,6 +91,13 @@ const OnBoardingSlider = () => {
             : "#ffff",
       }))
     );
+
+  // If user is already logged in, skip onboarding entirely.
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/(tabs)");
+    }
+  }, [isAuthenticated]);
 
   return (
     <SafeAreaView className="h-full bg-b50 dark:bg-n50 flex-1 items-center justify-start relative">
