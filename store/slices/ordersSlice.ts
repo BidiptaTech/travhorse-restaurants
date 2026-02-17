@@ -5,60 +5,89 @@ import type { RootState } from "@/store";
 /** GET restaurant orders (ongoing + upcoming; past ignored). */
 export const RESTAURANT_ORDERS_ENDPOINT = apiUrl("restaurant-orders");
 
-/** UI shape for an ongoing order/ticket. */
-export interface OngoingOrder {
-  id: string;
-  ticketId: string;
-  event: string;
-  holder: string;
-  guests: number;
-  checkedInGuests: number;
-  table: string;
+/** First element of order.data from API (booking details). */
+export interface OrderDataItem {
+  bookingDate?: string;
+  visitTime?: string;
+  adultCount?: number;
+  childCount?: number;
+  mealType?: string;
+  mealSpecificType?: string;
+  fullName?: string;
+  totalPrice?: number;
+  restaurantName?: string;
+  address1?: string;
+  address2?: string;
+  email?: string;
+  phone?: string;
+  specialRequests?: string;
+  countryCode?: string;
+  state?: string;
+  zip?: string;
+  [key: string]: unknown;
 }
 
-/** UI shape for an upcoming order/ticket. */
-export interface UpcomingOrder {
-  id: string;
-  ticketId: string;
-  event: string;
-  holder: string;
-  date: string;
-  guests: number;
+/** Raw order item from API (data.data[]). */
+export interface RawRestaurantOrder {
+  id: number;
+  booking_id: number;
+  tour_id?: string;
+  data?: OrderDataItem[];
+  type?: string;
+  status?: number;
+  created_at?: string;
+  updated_at?: string;
+  is_redeemed?: number;
+  tour?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
-/** Raw item from API (may use snake_case). */
-function normalizeOngoing(raw: Record<string, unknown>): OngoingOrder {
-  const id = String(raw.id ?? raw.ticket_id ?? "");
-  const ticketId = String(raw.ticket_id ?? raw.ticketId ?? id);
+/** Normalized order for list + full raw for detail modal. */
+export interface RestaurantOrder {
+  id: string;
+  bookingId: string;
+  bookingDate: string;
+  bookingTime: string;
+  guests: number;
+  mealType: string;
+  mealSpecificType: string;
+  holder: string;
+  totalPrice: number;
+  /** Full API order for detail modal */
+  raw: RawRestaurantOrder;
+}
+
+function getFirstData(raw: RawRestaurantOrder): OrderDataItem | null {
+  const arr = raw?.data;
+  if (Array.isArray(arr) && arr.length > 0) return arr[0] as OrderDataItem;
+  return null;
+}
+
+function normalizeOrder(raw: RawRestaurantOrder): RestaurantOrder {
+  const first = getFirstData(raw);
+  const adults = Number(first?.adultCount ?? 0);
+  const children = Number(first?.childCount ?? 0);
   return {
-    id: id || ticketId,
-    ticketId,
-    event: String(raw.event ?? raw.event_name ?? raw.title ?? ""),
-    holder: String(raw.holder ?? raw.guest_name ?? raw.customer_name ?? ""),
-    guests: Number(raw.guests ?? raw.guest_count ?? 0),
-    checkedInGuests: Number(raw.checked_in_guests ?? raw.checkedInGuests ?? 0),
-    table: String(raw.table ?? raw.table_number ?? ""),
+    id: String(raw.id ?? raw.booking_id ?? ""),
+    bookingId: String(raw.booking_id ?? raw.id ?? ""),
+    bookingDate: String(first?.bookingDate ?? ""),
+    bookingTime: String(first?.visitTime ?? ""),
+    guests: adults + children,
+    mealType: String(first?.mealType ?? ""),
+    mealSpecificType: String(first?.mealSpecificType ?? ""),
+    holder: String(first?.fullName ?? ""),
+    totalPrice: Number(first?.totalPrice ?? 0),
+    raw,
   };
 }
 
-function normalizeUpcoming(raw: Record<string, unknown>): UpcomingOrder {
-  const id = String(raw.id ?? raw.ticket_id ?? "");
-  const ticketId = String(raw.ticket_id ?? raw.ticketId ?? id);
-  return {
-    id: id || ticketId,
-    ticketId,
-    event: String(raw.event ?? raw.event_name ?? raw.title ?? ""),
-    holder: String(raw.holder ?? raw.guest_name ?? raw.customer_name ?? ""),
-    date: String(raw.date ?? raw.event_date ?? raw.scheduled_at ?? ""),
-    guests: Number(raw.guests ?? raw.guest_count ?? 0),
-  };
-}
+export type OrdersType = "ongoing" | "upcoming";
 
 export const fetchRestaurantOrders = createAsyncThunk<
-  { ongoing: OngoingOrder[]; upcoming: UpcomingOrder[] },
-  void,
+  { type: OrdersType; orders: RestaurantOrder[] },
+  OrdersType,
   { state: RootState }
->("orders/fetchRestaurantOrders", async (_, { getState, rejectWithValue }) => {
+>("orders/fetchRestaurantOrders", async (type, { getState, rejectWithValue }) => {
   const token = getState().auth.token;
   if (!token) {
     return rejectWithValue("Not authenticated");
@@ -69,10 +98,12 @@ export const fetchRestaurantOrders = createAsyncThunk<
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      Type: type,
     },
   });
 
   const json = await res.json().catch(() => ({}));
+  console.log("[orders] API response", { type, status: res.status, data: json });
 
   if (!res.ok) {
     return rejectWithValue(
@@ -80,22 +111,22 @@ export const fetchRestaurantOrders = createAsyncThunk<
     );
   }
 
-  const data = json?.data ?? json;
-  const rawOngoing = Array.isArray(data?.ongoing) ? data.ongoing : [];
-  const rawUpcoming = Array.isArray(data?.upcoming) ? data.upcoming : [];
+  // API can return { data: { data: [...] } } or { data: [...] } or { data: { data: [...], message, success } }
+  const wrapper = json?.data ?? json;
+  const dataArray = Array.isArray(wrapper?.data)
+    ? wrapper.data
+    : Array.isArray(wrapper)
+      ? wrapper
+      : [];
+  const orders = (dataArray as RawRestaurantOrder[]).map((o) => normalizeOrder(o));
+  console.log("[orders] parsed", { type, count: orders.length, firstId: orders[0]?.bookingId });
 
-  const ongoing = rawOngoing.map((o: Record<string, unknown>) => normalizeOngoing(o));
-  const upcoming = rawUpcoming.map((o: Record<string, unknown>) => normalizeUpcoming(o));
-
-  console.log("[orders] ongoing:", ongoing);
-  console.log("[orders] upcoming:", upcoming);
-
-  return { ongoing, upcoming };
+  return { type, orders };
 });
 
 export interface OrdersState {
-  ongoing: OngoingOrder[];
-  upcoming: UpcomingOrder[];
+  ongoing: RestaurantOrder[];
+  upcoming: RestaurantOrder[];
   loading: boolean;
   error: string | null;
 }
@@ -124,8 +155,12 @@ const ordersSlice = createSlice({
       .addCase(fetchRestaurantOrders.fulfilled, (state, action) => {
         state.loading = false;
         state.error = null;
-        state.ongoing = action.payload.ongoing;
-        state.upcoming = action.payload.upcoming;
+        if (action.payload.type === "ongoing") {
+          state.ongoing = action.payload.orders;
+        }
+        if (action.payload.type === "upcoming") {
+          state.upcoming = action.payload.orders;
+        }
       })
       .addCase(fetchRestaurantOrders.rejected, (state, action) => {
         state.loading = false;

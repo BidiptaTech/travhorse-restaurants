@@ -11,6 +11,7 @@ import {
   Pressable,
   Share,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -19,9 +20,8 @@ import { useColorScheme } from "nativewind";
 import { Swipeable } from "react-native-gesture-handler";
 import { setStoredTheme } from "../../utils/themeStorage";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import { signOut, AUTH_LOGOUT_ENDPOINT, AUTH_LOGIN_ENDPOINT } from "../../store/slices/authSlice";
+import { signOut, AUTH_LOGOUT_ENDPOINT } from "../../store/slices/authSlice";
 import { clearAuth } from "../../utils/authStorage";
-import FormField from "../../components/inputFields/FormField";
 import { apiUrl } from "../../constants/api";
 import {
   getTodayScans,
@@ -38,7 +38,7 @@ import {
 const MENU_FEATURES = [
   { id: "ongoing", icon: "time-outline", label: "Ongoing" },
   { id: "upcoming", icon: "calendar-outline", label: "Upcoming" },
-  { id: "support", icon: "help-circle-outline", label: "Customer support" },
+  // { id: "support", icon: "help-circle-outline", label: "Customer support" },
   { id: "share", icon: "share-social-outline", label: "Share app" },
   { id: "appearance", icon: "contrast-outline", label: "Appearance" },
   { id: "delete-account", icon: "trash-outline", label: "Delete account" },
@@ -51,14 +51,20 @@ export default function TicketScannerHome() {
   const [scanResultVisible, setScanResultVisible] = useState(false);
   const [scannedData, setScannedData] = useState<string | null>(null);
   const [invalidTicketVisible, setInvalidTicketVisible] = useState(false);
+  const [restaurantIdErrorVisible, setRestaurantIdErrorVisible] = useState(false);
+  const [restaurantIdErrorTitle, setRestaurantIdErrorTitle] = useState("Restaurant ID not found");
+  const [restaurantIdErrorMessage, setRestaurantIdErrorMessage] = useState("");
+  // const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [redeemInfoVisible, setRedeemInfoVisible] = useState(false);
   const [redeemInfoMessage, setRedeemInfoMessage] = useState<string | null>(null);
+  const [redeemFailedVisible, setRedeemFailedVisible] = useState(false);
+  const [redeemFailedTitle, setRedeemFailedTitle] = useState("Redeem failed");
+  const [redeemFailedMessage, setRedeemFailedMessage] = useState("");
   const [lastRedeemedCode, setLastRedeemedCode] = useState<string | null>(null);
+  const [redeemSuccessToastVisible, setRedeemSuccessToastVisible] = useState(false);
+  const [redeemSuccessToastMessage, setRedeemSuccessToastMessage] = useState("");
+  const redeemSuccessToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
-  const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
-  const [deleteAccountPasswordError, setDeleteAccountPasswordError] = useState("");
-  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [signOutVisible, setSignOutVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
@@ -84,6 +90,15 @@ export default function TicketScannerHome() {
     }
   }, [userId]);
 
+  useEffect(() => {
+    return () => {
+      if (redeemSuccessToastTimeoutRef.current) {
+        clearTimeout(redeemSuccessToastTimeoutRef.current);
+        redeemSuccessToastTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const onMenuFeature = useCallback((id: string) => {
     setMenuOpen(false);
     if (id === "sign-out") {
@@ -106,14 +121,10 @@ export default function TicketScannerHome() {
       setDeleteAccountVisible(true);
       return;
     }
-    if (id === "support") {
-      Alert.alert(
-        "Customer support",
-        "For help with ticket scanning or check-ins, contact:\n\nEmail: support@travhorserestaurants.com\nPhone: +1 (000) 000-0000",
-        [{ text: "OK" }]
-      );
-      return;
-    }
+    // if (id === "support") {
+    //   setSupportModalVisible(true);
+    //   return;
+    // }
     if (id === "share") {
       Share.share({
         message:
@@ -134,6 +145,12 @@ export default function TicketScannerHome() {
   }, [setColorScheme]);
 
   const openScanner = useCallback(async () => {
+    if (!user?.id?.trim()) {
+      setRestaurantIdErrorTitle("Restaurant ID not found");
+      setRestaurantIdErrorMessage("Your account is missing a restaurant ID. Please sign out and sign in again.");
+      setRestaurantIdErrorVisible(true);
+      return;
+    }
     if (!permission?.granted) {
       const { granted } = await requestPermission();
       if (!granted) {
@@ -146,32 +163,52 @@ export default function TicketScannerHome() {
     }
     setLastScanned(null);
     setScanVisible(true);
-  }, [permission?.granted, requestPermission]);
+  }, [user?.id, permission?.granted, requestPermission]);
 
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
       const code = data?.trim() ?? "";
       const uid = user?.id ?? "";
 
+      if (!uid) {
+        setRestaurantIdErrorTitle("Restaurant ID not found");
+        setRestaurantIdErrorMessage("Your account is missing a restaurant ID. Please sign out and sign in again.");
+        setRestaurantIdErrorVisible(true);
+        setScanVisible(false);
+        setScannedData(null);
+        setScanResultVisible(false);
+        return;
+      }
+
       if (!code) {
         return;
       }
 
-      // If this exact code was just redeemed successfully, show info modal and close camera
+      // If this exact code was just redeemed, show error (already redeemed) and close camera
       if (lastRedeemedCode && code === lastRedeemedCode) {
         setScanVisible(false);
         setScannedData(null);
         setScanResultVisible(false);
-        setRedeemInfoVisible(true);
+        setRedeemFailedTitle("Already redeemed");
+        setRedeemFailedMessage("This voucher has already been redeemed.");
+        setRedeemFailedVisible(true);
         return;
       }
 
-      // If QR payload contains a restaurant ID, ensure it matches the logged-in restaurant
       const ticket = parseScannedTicket(code);
-      if (ticket?.rid != null && uid) {
-        const scannedRestaurantId = String(ticket.rid);
-        if (scannedRestaurantId !== uid) {
-          // Show styled error modal and close camera
+
+      // Ticket must contain a restaurant ID (rid) to be valid
+      if (ticket && (ticket.tid != null || ticket.bid != null || ticket.r != null)) {
+        if (ticket.rid == null || ticket.rid === "") {
+          setRestaurantIdErrorTitle("Restaurant ID not found");
+          setRestaurantIdErrorMessage("This ticket does not contain a restaurant ID and cannot be validated.");
+          setRestaurantIdErrorVisible(true);
+          setScanVisible(false);
+          setScannedData(null);
+          setScanResultVisible(false);
+          return;
+        }
+        if (String(ticket.rid) !== uid) {
           setScanVisible(false);
           setScannedData(null);
           setScanResultVisible(false);
@@ -238,30 +275,55 @@ export default function TicketScannerHome() {
       if (!res.ok || data?.success === false) {
         const message =
           data?.message || data?.error || `Failed to redeem ticket (${res.status})`;
-        Alert.alert("Redeem failed", message);
+        setRedeemFailedTitle("Redeem failed");
+        setRedeemFailedMessage(message);
+        setRedeemFailedVisible(true);
         return;
       }
 
-      // Only store scan locally if redeem succeeded
+      const apiMessage = typeof data?.message === "string" ? data.message : "";
+      const isAlreadyRedeemed =
+        /already\s+redeem/i.test(apiMessage) || /already\s+used/i.test(apiMessage);
+
+      if (isAlreadyRedeemed) {
+        setRedeemFailedTitle("Already redeemed");
+        setRedeemFailedMessage(
+          apiMessage.trim() || "This voucher has already been redeemed."
+        );
+        setRedeemFailedVisible(true);
+        setScanResultVisible(false);
+        setScannedData(null);
+        return;
+      }
+
+      // Only store scan locally if redeem succeeded (and not already redeemed)
       addTodayScan(uid, code).then(() => getTodayScans(uid).then(setTodayScans));
       addHistoryScan(uid, code); // Also save to persistent history
 
       // Remember this code and show success info for any immediate rescan
       setLastRedeemedCode(code);
       setRedeemInfoMessage(
-        typeof data?.message === "string" && data.message.length > 0
-          ? data.message
-          : "Voucher redeemed successfully"
+        apiMessage.length > 0 ? apiMessage : "Voucher redeemed successfully"
       );
 
       setLastScanned(scannedData ?? null);
       setScanResultVisible(false);
       setScannedData(null);
+
+      const msg = apiMessage.length > 0 ? apiMessage : "Voucher redeemed successfully";
+      setRedeemSuccessToastMessage(msg);
+      setRedeemSuccessToastVisible(true);
+      if (redeemSuccessToastTimeoutRef.current) clearTimeout(redeemSuccessToastTimeoutRef.current);
+      redeemSuccessToastTimeoutRef.current = setTimeout(() => {
+        setRedeemSuccessToastVisible(false);
+        redeemSuccessToastTimeoutRef.current = null;
+      }, 1000);
     } catch (err) {
-      Alert.alert(
-        "Error",
+      setRedeemFailedTitle("Error");
+      setRedeemFailedMessage(
         err instanceof Error ? err.message : "Network error. Please try again."
       );
+      setRedeemFailedVisible(true);
     }
   }, [scannedData, user?.id, token]);
 
@@ -270,111 +332,8 @@ export default function TicketScannerHome() {
     setScannedData(null);
   }, []);
 
-  const onVerifyPassword = useCallback(async () => {
-    if (!deleteAccountPassword.trim()) {
-      setDeleteAccountPasswordError("Password is required");
-      return;
-    }
-
-    if (!user?.email) {
-      Alert.alert("Error", "User email not found");
-      return;
-    }
-
-    setDeleteAccountPasswordError("");
-    setDeleteAccountLoading(true);
-
-    try {
-      // Verify password by attempting login
-      const res = await fetch(AUTH_LOGIN_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          password: deleteAccountPassword,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || !data?.success) {
-        setDeleteAccountPasswordError("Incorrect password");
-        setDeleteAccountLoading(false);
-        return;
-      }
-
-      // Password is correct, show final confirmation
-      setDeleteAccountLoading(false);
-      setShowDeleteConfirmation(true);
-    } catch (err) {
-      setDeleteAccountPasswordError("Network error. Please try again.");
-      setDeleteAccountLoading(false);
-    }
-  }, [deleteAccountPassword, user?.email]);
-
-  const onConfirmDeleteAccount = useCallback(async () => {
-    if (!token) {
-      Alert.alert("Error", "Authentication token not found");
-      return;
-    }
-
-    if (!user?.id) {
-      Alert.alert("Error", "Restaurant ID not found");
-      return;
-    }
-
-    if (!deleteAccountPassword.trim()) {
-      Alert.alert("Error", "Password is required");
-      return;
-    }
-
-    setDeleteAccountLoading(true);
-
-    try {
-      const deleteEndpoint = apiUrl("delete-restaurant-account");
-      const res = await fetch(deleteEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          restaurant_id: user.id,
-          Password: deleteAccountPassword,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      console.log("[Delete Account] response", { status: res.status, data });
-
-      if (!res.ok) {
-        const message = data?.message || data?.error || `Failed to delete account (${res.status})`;
-        Alert.alert("Delete Failed", message);
-        setDeleteAccountLoading(false);
-        return;
-      }
-
-      // Account deleted successfully
-      await clearAuth();
-      dispatch(signOut());
-      setDeleteAccountVisible(false);
-      setDeleteAccountPassword("");
-      setDeleteAccountPasswordError("");
-      setShowDeleteConfirmation(false);
-      setDeleteAccountLoading(false);
-      router.replace("/(auth-pages)/SignIn");
-    } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Network error. Please try again.");
-      setDeleteAccountLoading(false);
-    }
-  }, [token, user?.id, deleteAccountPassword, dispatch]);
-
   const onDismissDeleteAccount = useCallback(() => {
     setDeleteAccountVisible(false);
-    setDeleteAccountPassword("");
-    setDeleteAccountPasswordError("");
-    setDeleteAccountLoading(false);
-    setShowDeleteConfirmation(false);
   }, []);
 
   const onConfirmSignOut = useCallback(async () => {
@@ -425,21 +384,23 @@ export default function TicketScannerHome() {
     setScanToDelete(null);
   }, []);
 
+  // Theme aligned with Sign In page: b50, n50, n400, n500, p1 (tailwind.config.js)
   const isDark = colorScheme === "dark";
-  const iconColor = isDark ? "#ffffff" : "#1f2937";
-  const headerBg = isDark ? "#18191C" : "#f8fafc";
-  const contentBg = isDark ? "#121317" : "#ffffff";
-  const cardBg = isDark ? "#1D1F24" : "#f1f5f9";
-  const cardBgAlt = isDark ? "#15161B" : "#e2e8f0";
-  const qrPlaceholderBg = isDark ? "#0E1014" : "#cbd5e1";
-  const borderColor = isDark ? "#2A2B30" : "#e2e8f0";
-  const textPrimary = isDark ? "#ffffff" : "#1e293b";
-  const textSecondary = isDark ? "#9ca3af" : "#64748b";
+  const primary = "#613BFF"; // p1 – same as login button
+  const iconColor = isDark ? "#ffffff" : "#4A4A4A"; // n400
+  const headerBg = isDark ? "#151718" : "#F5F5F7"; // n50 / b50
+  const contentBg = isDark ? "#151718" : "#F5F5F7"; // n50 / b50
+  const cardBg = isDark ? "#2A2A2E" : "#ffffff"; // n75 / white
+  const cardBgAlt = isDark ? "#242428" : "#EEEEF0"; // n6 / light gray
+  const qrPlaceholderBg = isDark ? "#1A1A1C" : "#E5E5E7";
+  const borderColor = isDark ? "#3A3A40" : "#E5E5E7"; // n100 / border
+  const textPrimary = isDark ? "#ffffff" : "#4A4A4A"; // n400
+  const textSecondary = isDark ? "#9CA3AF" : "#6B6B70"; // n500 / g60
 
   return (
     <SafeAreaView
       className="flex-1"
-      style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
+      style={{ backgroundColor: isDark ? "#151718" : "#F5F5F7" }}
     >
       <ScrollView
         className="flex-1"
@@ -469,15 +430,15 @@ export default function TicketScannerHome() {
           <TouchableOpacity
               onPress={() => router.push("/(tabs)/history")}
               className="w-9 h-9 rounded-full items-center justify-center"
-              style={{ backgroundColor: isDark ? "#2A2B30" : "#e2e8f0" }}
+              style={{ backgroundColor: isDark ? "#2A2A2E" : "#E5E5E7" }}
             >
               <Ionicons name="time-outline" size={20} color={iconColor} />
             </TouchableOpacity>
         </View>
 
         <View className="px-4 pt-4 flex-1" style={{ backgroundColor: contentBg }}>
-          {/* Event banner */}
-          <View className="rounded-lg bg-[#7A1D23] px-4 py-3 mb-4">
+          {/* Event banner – primary colour like login */}
+          <View className="rounded-lg px-4 py-3 mb-4" style={{ backgroundColor: primary }}>
             <Text className="text-xs text-white opacity-80 mb-1">
               Restaurant
             </Text>
@@ -517,25 +478,18 @@ export default function TicketScannerHome() {
               className="items-center justify-center rounded-lg"
             >
               <Ionicons name="qr-code" size={96} color={iconColor} />
-              {lastScanned ? (
-                <Text
-                  className="absolute bottom-3 left-3 right-3 text-center text-green-600 text-xs"
-                  numberOfLines={2}
-                >
-                  Last: {lastScanned}
-                </Text>
-              ) : null}
             </TouchableOpacity>
             <Text className="mt-3 text-center text-xs" style={{ color: textSecondary }}>
               SCAN QR CODE
             </Text>
           </View>
 
-          {/* Scan button */}
+          {/* Scan button – primary like login */}
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={openScanner}
-            className="flex-row items-center justify-center bg-[#D62828] rounded-lg py-3 mb-4"
+            className="flex-row items-center justify-center rounded-lg py-3 mb-4"
+            style={{ backgroundColor: primary }}
           >
             <Ionicons name="camera" size={18} color="#ffffff" />
             <Text className="text-white text-base font-semibold ml-2">
@@ -557,7 +511,8 @@ export default function TicketScannerHome() {
                   </Text>
                   <TouchableOpacity
                     onPress={requestPermission}
-                    className="bg-[#D62828] rounded-lg px-6 py-3"
+                    className="rounded-lg px-6 py-3"
+                    style={{ backgroundColor: primary }}
                   >
                     <Text className="text-white font-semibold">
                       Grant permission
@@ -620,17 +575,17 @@ export default function TicketScannerHome() {
                 style={[
                   styles.resultModalCard,
                   {
-                    backgroundColor: isDark ? "#18191C" : "#ffffff",
-                    borderColor: isDark ? "#2A2B30" : "#e2e8f0",
+                    backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                    borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
                   },
                 ]}
               >
                 <View className="items-center pt-2 pb-2">
                   <View
                     className="w-16 h-16 rounded-full items-center justify-center mb-3"
-                    style={{ backgroundColor: "rgba(34, 197, 94, 0.15)" }}
+                    style={{ backgroundColor: "rgba(97, 59, 255, 0.15)" }}
                   >
-                    <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
+                    <Ionicons name="checkmark-circle" size={48} color={primary} />
                   </View>
                   <Text
                     className="text-xl font-bold mb-1"
@@ -710,7 +665,7 @@ export default function TicketScannerHome() {
                     onPress={onDismissScanResult}
                     className="flex-1 rounded-xl py-3.5 items-center justify-center"
                     style={{
-                      backgroundColor: isDark ? "#2A2B30" : "#e2e8f0",
+                      backgroundColor: isDark ? "#2A2A2E" : "#E5E5E7",
                     }}
                     activeOpacity={0.8}
                   >
@@ -723,7 +678,8 @@ export default function TicketScannerHome() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={onConfirmScannedTicket}
-                    className="flex-1 rounded-xl py-3.5 items-center justify-center bg-[#D62828]"
+                    className="flex-1 rounded-xl py-3.5 items-center justify-center"
+                    style={{ backgroundColor: primary }}
                     activeOpacity={0.8}
                   >
                     <Text className="text-base font-semibold text-white">
@@ -922,7 +878,7 @@ export default function TicketScannerHome() {
                 Light mode
               </Text>
               {colorScheme === "light" && (
-                <Ionicons name="checkmark-circle" size={24} color="#D62828" />
+                <Ionicons name="checkmark-circle" size={24} color={primary} />
               )}
             </TouchableOpacity>
             <TouchableOpacity
@@ -936,14 +892,14 @@ export default function TicketScannerHome() {
                 Dark mode
               </Text>
               {colorScheme === "dark" && (
-                <Ionicons name="checkmark-circle" size={24} color="#D62828" />
+                <Ionicons name="checkmark-circle" size={24} color={primary} />
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Delete account confirm modal (same style as sign out) */}
+      {/* Delete account – email instruction only */}
       <Modal
         visible={deleteAccountVisible}
         transparent
@@ -959,98 +915,70 @@ export default function TicketScannerHome() {
             style={[
               styles.resultModalCard,
               {
-                backgroundColor: isDark ? "#18191C" : "#ffffff",
-                borderColor: isDark ? "#2A2B30" : "#e2e8f0",
+                backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
               },
             ]}
           >
-            <View className="items-center pt-3 pb-4 px-4">
+            <View className="items-center pt-4 pb-2 px-4">
               <View
                 className="w-14 h-14 rounded-full items-center justify-center mb-3"
                 style={{ backgroundColor: "rgba(248, 113, 113, 0.2)" }}
               >
                 <Ionicons name="trash-outline" size={32} color="#ef4444" />
               </View>
-              {!showDeleteConfirmation ? (
-                <>
-                  <Text
-                    className="text-lg font-bold mb-1 text-center"
-                    style={{ color: textPrimary }}
-                  >
-                    Delete account?
-                  </Text>
-                  <Text
-                    className="text-sm text-center mb-4"
-                    style={{ color: textSecondary }}
-                  >
-                    This will permanently remove this account and its data from this
-                    device. This action cannot be undone.
-                  </Text>
-                  <View className="w-full px-2">
-                    <FormField
-                      isTitle={true}
-                      title="Password"
-                      placeholder="Enter your password"
-                      value={deleteAccountPassword}
-                      onChangeText={(text) => {
-                        setDeleteAccountPassword(text);
-                        if (deleteAccountPasswordError) {
-                          setDeleteAccountPasswordError("");
-                        }
-                      }}
-                      error={deleteAccountPasswordError}
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text
-                    className="text-lg font-bold mb-1 text-center"
-                    style={{ color: textPrimary }}
-                  >
-                    Are you sure?
-                  </Text>
-                  <Text
-                    className="text-sm text-center mb-4"
-                    style={{ color: textSecondary }}
-                  >
-                    This action cannot be undone. Your account and all associated data will be permanently deleted.
-                  </Text>
-                </>
-              )}
+              <Text
+                className="text-lg font-bold mb-1 text-center"
+                style={{ color: textPrimary }}
+              >
+                Delete account
+              </Text>
+              <Text
+                className="text-sm text-center mb-4"
+                style={{ color: textSecondary }}
+              >
+                To delete your account, send an email to{" "}
+                <Text className="font-semibold" style={{ color: textPrimary }}>
+                  travcadmin@travclicks.com
+                </Text>
+                . Your account will be deleted within 72 hours.
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  const subject = encodeURIComponent("Account Deletion Request - Travhorse Restaurants");
+                  const body = encodeURIComponent(
+                    "Hello Travhorse Support Team,\n\n" +
+                    "I would like to request the permanent deletion of my restaurant account from the Travhorse Restaurants app.\n\n" +
+                    "Email: " + (user?.email ?? "") + "\n" +
+                    "Restaurant ID: " + (user?.id ?? "") + "\n" +
+                    "Restaurant Name: " + (user?.name ?? "") + "\n\n" +
+                    "Please confirm once the account has been deleted.\n\n" +
+                    "Thank you."
+                  );
+                  Linking.openURL(`mailto:travcadmin@travclicks.com?subject=${subject}&body=${body}`);
+                }}
+                className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
+                style={{ backgroundColor: primary }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="mail" size={20} color="#ffffff" />
+                <Text className="text-base font-semibold text-white ml-2">
+                  Send email
+                </Text>
+              </TouchableOpacity>
             </View>
-            <View className="flex-row px-4 pb-4" style={{ gap: 12 }}>
+            <View className="px-4 pb-4">
               <TouchableOpacity
                 onPress={onDismissDeleteAccount}
-                disabled={deleteAccountLoading}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center"
+                className="rounded-xl py-3.5 items-center justify-center"
                 style={{
-                  backgroundColor: isDark ? "#2A2B30" : "#e2e8f0",
-                  opacity: deleteAccountLoading ? 0.6 : 1,
+                  backgroundColor: isDark ? "#2A2A2E" : "#E5E5E7",
                 }}
                 activeOpacity={0.8}
               >
-                <Text
-                  className="text-base font-semibold"
-                  style={{ color: textPrimary }}
-                >
-                  Cancel
+                <Text className="text-base font-semibold" style={{ color: textPrimary }}>
+                  Close
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={showDeleteConfirmation ? onConfirmDeleteAccount : onVerifyPassword}
-                disabled={deleteAccountLoading}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center bg-[#D62828]"
-                style={{ opacity: deleteAccountLoading ? 0.6 : 1 }}
-                activeOpacity={0.8}
-              >
-                {deleteAccountLoading ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text className="text-base font-semibold text-white">
-                    {showDeleteConfirmation ? "Yes, Delete" : "Verify"}
-                  </Text>
-                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -1073,8 +1001,8 @@ export default function TicketScannerHome() {
             style={[
               styles.resultModalCard,
               {
-                backgroundColor: isDark ? "#18191C" : "#ffffff",
-                borderColor: isDark ? "#2A2B30" : "#e2e8f0",
+backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                    borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
               },
             ]}
           >
@@ -1117,11 +1045,179 @@ export default function TicketScannerHome() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={onConfirmSignOut}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center bg-[#D62828]"
+                className="flex-1 rounded-xl py-3.5 items-center justify-center"
+                style={{ backgroundColor: primary }}
                 activeOpacity={0.8}
               >
                 <Text className="text-base font-semibold text-white">
                   Sign out
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Customer support modal */}
+      {/* <Modal
+        visible={supportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSupportModalVisible(false)}
+      >
+        <View style={styles.resultModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSupportModalVisible(false)}
+          />
+          <View
+            style={[
+              styles.resultModalCard,
+              {
+backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                    borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
+              },
+            ]}
+          >
+            <View className="items-center pt-4 pb-2 px-4">
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center mb-3"
+                style={{ backgroundColor: isDark ? "rgba(59, 130, 246, 0.2)" : "rgba(59, 130, 246, 0.12)" }}
+              >
+                <Ionicons name="headset" size={32} color="#3b82f6" />
+              </View>
+              <Text
+                className="text-lg font-bold mb-1 text-center"
+                style={{ color: textPrimary }}
+              >
+                Customer support
+              </Text>
+              <Text
+                className="text-sm text-center px-2 mb-4"
+                style={{ color: textSecondary }}
+              >
+                Need help with scanning or vouchers? Reach us by phone or email.
+              </Text>
+              <View className="w-full" style={{ gap: 12 }}>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL("tel:+10000000000")}
+                  className="flex-row items-center rounded-xl py-3.5 px-4"
+                  style={{
+                    backgroundColor: isDark ? "#1e3a5f" : "#eff6ff",
+                    borderWidth: 1,
+                    borderColor: isDark ? "#2563eb" : "#bfdbfe",
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
+                    style={{ backgroundColor: "rgba(59, 130, 246, 0.2)" }}
+                  >
+                    <Ionicons name="call" size={20} color="#3b82f6" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs" style={{ color: textSecondary }}>
+                      Phone
+                    </Text>
+                    <Text className="text-base font-semibold" style={{ color: textPrimary }}>
+                      +1 (000) 000-0000
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => Linking.openURL("mailto:support@travhorserestaurants.com")}
+                  className="flex-row items-center rounded-xl py-3.5 px-4"
+                  style={{
+                    backgroundColor: isDark ? "#1e3a5f" : "#eff6ff",
+                    borderWidth: 1,
+                    borderColor: isDark ? "#2563eb" : "#bfdbfe",
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
+                    style={{ backgroundColor: "rgba(59, 130, 246, 0.2)" }}
+                  >
+                    <Ionicons name="mail" size={20} color="#3b82f6" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs" style={{ color: textSecondary }}>
+                      Email
+                    </Text>
+                    <Text className="text-base font-semibold" style={{ color: textPrimary }} numberOfLines={1}>
+                      support@travhorserestaurants.com
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View className="px-4 pb-4 pt-2">
+              <TouchableOpacity
+                onPress={() => setSupportModalVisible(false)}
+                className="rounded-xl py-3.5 items-center justify-center"
+                style={{
+                  backgroundColor: isDark ? "#2A2B30" : "#e2e8f0",
+                }}
+                activeOpacity={0.8}
+              >
+                <Text className="text-base font-semibold" style={{ color: textPrimary }}>
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal> */}
+
+      {/* Restaurant ID not found – styled error modal */}
+      <Modal
+        visible={restaurantIdErrorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRestaurantIdErrorVisible(false)}
+      >
+        <View style={styles.resultModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setRestaurantIdErrorVisible(false)}
+          />
+          <View
+            style={[
+              styles.resultModalCard,
+              {
+                backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                borderColor: isDark ? "#4B1010" : "#fecaca",
+              },
+            ]}
+          >
+            <View className="items-center pt-4 pb-2 px-4">
+              <View
+                className="w-16 h-16 rounded-full items-center justify-center mb-3"
+                style={{ backgroundColor: "rgba(248, 113, 113, 0.2)" }}
+              >
+                <Ionicons name="warning" size={36} color="#ef4444" />
+              </View>
+              <Text
+                className="text-lg font-bold mb-2 text-center"
+                style={{ color: isDark ? "#fecaca" : "#b91c1c" }}
+              >
+                {restaurantIdErrorTitle}
+              </Text>
+              <Text
+                className="text-sm text-center px-3 mb-4"
+                style={{ color: textSecondary }}
+              >
+                {restaurantIdErrorMessage}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setRestaurantIdErrorVisible(false)}
+                className="w-full rounded-xl py-3.5 items-center justify-center bg-[#ef4444]"
+                activeOpacity={0.8}
+              >
+                <Text className="text-base font-semibold text-white">
+                  Close
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1242,6 +1338,127 @@ export default function TicketScannerHome() {
         </View>
       </Modal>
 
+      {/* Redeem success toast – message only, auto-close 1s, OK button */}
+      <Modal
+        visible={redeemSuccessToastVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (redeemSuccessToastTimeoutRef.current) {
+            clearTimeout(redeemSuccessToastTimeoutRef.current);
+            redeemSuccessToastTimeoutRef.current = null;
+          }
+          setRedeemSuccessToastVisible(false);
+        }}
+      >
+        <View style={styles.resultModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (redeemSuccessToastTimeoutRef.current) {
+                clearTimeout(redeemSuccessToastTimeoutRef.current);
+                redeemSuccessToastTimeoutRef.current = null;
+              }
+              setRedeemSuccessToastVisible(false);
+            }}
+          />
+          <View
+            style={[
+              styles.resultModalCard,
+              {
+                backgroundColor: isDark ? "#18191C" : "#ffffff",
+                borderColor: isDark ? "#14532d" : "#bbf7d0",
+                borderWidth: 1,
+              },
+            ]}
+          >
+            <View className="items-center pt-5 pb-4 px-5">
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center mb-4"
+                style={{ backgroundColor: "rgba(34, 197, 94, 0.18)" }}
+              >
+                <Ionicons name="checkmark-circle" size={32} color="#22c55e" />
+              </View>
+              <Text
+                className="text-base text-center px-2 mb-4"
+                style={{ color: textSecondary, lineHeight: 22 }}
+              >
+                {redeemSuccessToastMessage}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (redeemSuccessToastTimeoutRef.current) {
+                    clearTimeout(redeemSuccessToastTimeoutRef.current);
+                    redeemSuccessToastTimeoutRef.current = null;
+                  }
+                  setRedeemSuccessToastVisible(false);
+                }}
+                className="w-full rounded-xl py-3.5 items-center justify-center bg-[#16a34a]"
+                activeOpacity={0.8}
+              >
+                <Text className="text-base font-semibold text-white">
+                  OK
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Redeem failed – styled error modal */}
+      <Modal
+        visible={redeemFailedVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRedeemFailedVisible(false)}
+      >
+        <View style={styles.resultModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setRedeemFailedVisible(false)}
+          />
+          <View
+            style={[
+              styles.resultModalCard,
+              {
+                backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                borderColor: isDark ? "#4B1010" : "#fecaca",
+              },
+            ]}
+          >
+            <View className="items-center pt-4 pb-2 px-4">
+              <View
+                className="w-16 h-16 rounded-full items-center justify-center mb-3"
+                style={{ backgroundColor: "rgba(248, 113, 113, 0.2)" }}
+              >
+                <Ionicons name="close-circle" size={36} color="#ef4444" />
+              </View>
+              <Text
+                className="text-lg font-bold mb-2 text-center"
+                style={{ color: isDark ? "#fecaca" : "#b91c1c" }}
+              >
+                {redeemFailedTitle}
+              </Text>
+              <Text
+                className="text-sm text-center px-3 mb-4"
+                style={{ color: textSecondary }}
+              >
+                {redeemFailedMessage}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setRedeemFailedVisible(false)}
+                className="w-full rounded-xl py-3.5 items-center justify-center bg-[#ef4444]"
+                activeOpacity={0.8}
+              >
+                <Text className="text-base font-semibold text-white">
+                  Close
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Delete scan confirmation modal */}
       <Modal
         visible={deleteScanVisible}
@@ -1258,8 +1475,8 @@ export default function TicketScannerHome() {
             style={[
               styles.resultModalCard,
               {
-                backgroundColor: isDark ? "#18191C" : "#ffffff",
-                borderColor: isDark ? "#2A2B30" : "#e2e8f0",
+backgroundColor: isDark ? "#151718" : "#F5F5F7",
+                    borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
               },
             ]}
           >
