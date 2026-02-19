@@ -9,16 +9,21 @@ const PageTitle = ({
   link,
   children,
   hideBackBautton,
+  backTo,
 }: {
   pageName: string;
   isRightIcon?: boolean;
   link?: string;
   children?: ReactNode;
   hideBackBautton?: boolean;
+  /** When set, back button navigates to this route (e.g. first slide) instead of router.back() */
+  backTo?: string;
 }) => {
   const handleBackPress = () => {
     try {
-      if (router.canGoBack()) {
+      if (backTo) {
+        router.replace(backTo as any);
+      } else if (router.canGoBack()) {
         router.back();
       } else {
         router.replace("/(tabs)");

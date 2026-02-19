@@ -12,6 +12,8 @@ type PropsType = {
   value?: string;
   onChangeText?: (text: string) => void;
   error?: string;
+  /** Use smaller padding and height for a more compact field */
+  compact?: boolean;
 };
 
 const FormField = ({
@@ -23,26 +25,29 @@ const FormField = ({
   value,
   onChangeText,
   error,
+  compact = false,
 }: PropsType) => {
   const { colorScheme } = useColorScheme();
   const [showPassword, setShowPassword] = useState(false);
   return (
     <View className={`   ${otherStyle} pt-1 `}>
       {isTitle && (
-        <Text className="text-base font-medium pb-2 dark:text-white">
+        <Text className={`font-medium dark:text-white ${compact ? "text-sm pb-1.5" : "text-base pb-2"}`}>
           {title}
         </Text>
       )}
       <View
-        className={` flex-row rounded-xl border-x border-b-2 border-t ${
+        className={` flex-row border-x border-b-2 border-t ${
           error ? "border-red-500" : "border-n50 dark:border-n400"
-        } bg-white  
-           dark:bg-n0 dark:text-white p-3`}
+        } bg-white dark:bg-n0 dark:text-white ${
+          compact ? "rounded-lg px-3 py-1.5" : "rounded-xl p-3"
+        }`}
       >
         <TextInput
           placeholder={placeholder}
           placeholderTextColor="#4A4A4A"
-          className=" text-n50 dark:text-white flex-1 "
+          className={` text-n50 dark:text-white flex-1 ${compact ? "text-sm min-h-0 py-0" : ""}`}
+          style={compact ? { minHeight: 28, paddingVertical: 0 } : undefined}
           secureTextEntry={
             [
               "Password",
@@ -63,7 +68,7 @@ const FormField = ({
           >
             <Ionicons
               name={showPassword ? "eye-outline" : "eye-off-outline"}
-              size={16}
+              size={compact ? 14 : 16}
               color={colorScheme === "dark" ? "#B6B6B6" : "#4A4A4A"}
             />
           </Pressable>

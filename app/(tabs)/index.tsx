@@ -1499,17 +1499,32 @@ backgroundColor: isDark ? "#151718" : "#F5F5F7",
               >
                 This scan will be permanently removed from your history.
               </Text>
-              {scanToDelete && "code" in scanToDelete && (
-                <Text
-                  className="text-xs font-mono mt-2 px-4 py-2 rounded-lg"
-                  style={{
-                    color: textSecondary,
-                    backgroundColor: isDark ? "#0E1014" : "#f1f5f9",
-                  }}
-                >
-                  {scanToDelete.code}
-                </Text>
-              )}
+              {scanToDelete && "code" in scanToDelete && (() => {
+                const codeStr = typeof scanToDelete.code === "string"
+                  ? scanToDelete.code
+                  : JSON.stringify(scanToDelete.code);
+                const { title, subtitle } = formatTicketDisplay(codeStr);
+                return (
+                  <View className="mt-2 px-4 py-2 rounded-lg" style={{ backgroundColor: isDark ? "#0E1014" : "#f1f5f9" }}>
+                    <Text
+                      className="text-sm font-semibold"
+                      style={{ color: textPrimary }}
+                      numberOfLines={1}
+                    >
+                      {title}
+                    </Text>
+                    {subtitle ? (
+                      <Text
+                        className="text-xs mt-0.5"
+                        style={{ color: textSecondary }}
+                        numberOfLines={1}
+                      >
+                        {subtitle}
+                      </Text>
+                    ) : null}
+                  </View>
+                );
+              })()}
             </View>
             <View className="flex-row px-4 pb-4" style={{ gap: 12 }}>
               <TouchableOpacity

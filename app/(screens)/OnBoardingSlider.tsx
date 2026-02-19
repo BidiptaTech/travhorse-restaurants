@@ -1,11 +1,11 @@
 import {
-  FlatList as RNFlatList,
   Image,
   Pressable,
   Text,
   View,
 } from "react-native";
 import React from "react";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useAnimatedRef,
   useAnimatedScrollHandler,
@@ -128,28 +128,34 @@ const OnBoardingSlider = () => {
       </View>
 
       <View className="w-full px-6 absolute bottom-[50px] left-0 right-0 z-10">
-        <View className="flex-row justify-between items-center mb-4">
-          <Pagination onbordingSliderData={onbordingSliderData} x={x} />
-        </View>
-
-        <Pressable
-          onPress={() => {
-            if (currentIndex < onbordingSliderData.length - 1) {
-              flatListRef.current?.scrollToIndex({
-                index: currentIndex + 1,
-              });
-            } else {
-              router.replace("/(auth-pages)/SignIn");
-            }
-          }}
-          className="bg-p1 w-full rounded-2xl h-14 justify-center"
-        >
-          <Text className="text-center text-base text-white font-semibold">
-            {currentIndex < onbordingSliderData.length - 1
-              ? "Next"
-              : "Get Started"}
-          </Text>
-        </Pressable>
+        {currentIndex < onbordingSliderData.length - 1 ? (
+          <View className="flex-row items-center justify-between">
+            <Pagination onbordingSliderData={onbordingSliderData} x={x} />
+            <Pressable
+              onPress={() => {
+                flatListRef.current?.scrollToIndex({
+                  index: currentIndex + 1,
+                });
+              }}
+              className="bg-p1 rounded-full w-14 h-14 items-center justify-center shadow-lg"
+              style={{ shadowColor: "#613BFF", shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}
+            >
+              <Ionicons name="chevron-forward" size={28} color="#ffffff" />
+            </Pressable>
+          </View>
+        ) : (
+          <View>
+            <View className="mb-4">
+              <Pagination onbordingSliderData={onbordingSliderData} x={x} />
+            </View>
+            <Pressable
+              onPress={() => router.replace("/(auth-pages)/SignIn")}
+              className="bg-p1 w-full rounded-2xl py-3.5 items-center justify-center"
+            >
+              <Text className="text-white text-base font-bold">Sign In</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );

@@ -135,7 +135,7 @@ const SignIn = () => {
               className="w-full h-[250px] -mt-20"
             />
           </View>
-          <PageTitle pageName="Sign In" hideBackBautton />
+          <PageTitle pageName="Sign In" backTo="/(screens)/OnBoardingSlider" />
         </View>
 
         <View className="pt-14 px-6">
@@ -156,6 +156,7 @@ const SignIn = () => {
                 }
               }}
               error={errors.email}
+              compact
             />
           </View>
           <View className="pt-4">
@@ -171,6 +172,7 @@ const SignIn = () => {
                 }
               }}
               error={errors.password}
+              compact
             />
           </View>
         </View>
