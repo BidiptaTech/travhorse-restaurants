@@ -101,14 +101,31 @@ const SignIn = () => {
         return;
       }
 
+      // const user: User = {
+      //   id: String(
+      //     userPayload?.restaurant_id ??
+      //       userPayload?.id ??
+      //       ""
+      //   ),
+      //   email: userPayload?.email ?? email.trim(),
+      //   name: userPayload?.restaurant_name ?? userPayload?.name ?? undefined,
+
+      // };
       const user: User = {
         id: String(
           userPayload?.restaurant_id ??
-            userPayload?.id ??
-            ""
+          userPayload?.id ??
+          ""
         ),
-        email: userPayload?.email ?? email.trim(),
+        email: userPayload?.restaurant_email ?? email.trim(),
         name: userPayload?.restaurant_name ?? userPayload?.name ?? undefined,
+      
+        dmcUsers: userPayload?.dmcDetails?.map((dmc: any) => ({
+          id: String(dmc.userId),
+          email: dmc.email,
+          name: dmc.name,
+          dmc:dmc.dmc || 'No DMC',
+        })) ?? [],
       };
 
       dispatch(setCredentials({ user, token }));

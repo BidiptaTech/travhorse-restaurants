@@ -41,6 +41,8 @@ export default function UpcomingScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<RestaurantOrder | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedDmc, setSelectedDmc] = useState<string | null>(null);
+  const [showAllDmcs, setShowAllDmcs] = useState(false);
 
   useEffect(() => {
     dispatch(fetchRestaurantOrders("upcoming"));
@@ -52,9 +54,20 @@ export default function UpcomingScreen() {
     setRefreshing(false);
   };
 
-  const filteredOrders = orders.filter((o) =>
-    o.bookingId.toLowerCase().includes(searchQuery.trim().toLowerCase())
-  );
+  // Extract unique DMC names from orders
+  const dmcNames = Array.from(
+    new Set(
+      orders
+        .map((o) => (o.raw.dmc as { name?: string } | undefined)?.name)
+        .filter((name): name is string => Boolean(name))
+    )
+  ).sort();
+
+  const filteredOrders = orders.filter((o) => {
+    const matchesSearch = o.bookingId.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    const matchesDmc = selectedDmc === null || (o.raw.dmc as { name?: string } | undefined)?.name === selectedDmc;
+    return matchesSearch && matchesDmc;
+  });
 
   return (
     <SafeAreaView
@@ -112,6 +125,77 @@ export default function UpcomingScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* DMC Filter Section */}
+        {dmcNames.length > 0 && (
+          <View className="mt-3">
+            <Text className="text-xs font-semibold mb-2" style={{ color: textSecondary }}>
+              Filter by DMC
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingRight: 4 }}
+            >
+              <TouchableOpacity
+                onPress={() => setSelectedDmc(null)}
+                className="px-3 py-1.5 rounded-full mr-2"
+                style={{
+                  backgroundColor: selectedDmc === null
+                    ? "#2563eb"
+                    : isDark ? "#1D1F24" : "#e0f2fe",
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  className="text-xs font-medium"
+                  style={{
+                    color: selectedDmc === null
+                      ? "#ffffff"
+                      : textSecondary,
+                  }}
+                >
+                  All
+                </Text>
+              </TouchableOpacity>
+              {(showAllDmcs ? dmcNames : dmcNames.slice(0, 5)).map((dmcName) => (
+                <TouchableOpacity
+                  key={dmcName}
+                  onPress={() => setSelectedDmc(dmcName === selectedDmc ? null : dmcName)}
+                  className="px-3 py-1.5 rounded-full mr-2"
+                  style={{
+                    backgroundColor: selectedDmc === dmcName
+                      ? "#2563eb"
+                      : isDark ? "#1D1F24" : "#e0f2fe",
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    className="text-xs font-medium"
+                    style={{
+                      color: selectedDmc === dmcName
+                        ? "#ffffff"
+                        : textSecondary,
+                    }}
+                  >
+                    {dmcName}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {dmcNames.length > 5 && (
+              <TouchableOpacity
+                onPress={() => setShowAllDmcs(!showAllDmcs)}
+                className="mt-2 self-start"
+                activeOpacity={0.7}
+              >
+                <Text className="text-xs font-medium" style={{ color: "#2563eb" }}>
+                  {showAllDmcs ? "Show Less" : `Show More (${dmcNames.length - 5})`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -162,6 +246,13 @@ export default function UpcomingScreen() {
                     {order.guests} guest{order.guests !== 1 ? "s" : ""}
                     {order.mealType ? ` · ${order.mealType}` : ""}
                   </Text>
+                  {(order.raw.dmc as { name?: string } | undefined)?.name && (
+                    <View className="mt-1.5 self-start px-2 py-0.5 rounded-md" style={{ backgroundColor: "rgba(37, 99, 235, 0.15)" }}>
+                      <Text className="text-[11px] font-semibold" style={{ color: "#2563eb" }}>
+                        DMC: {(order.raw.dmc as { name: string }).name}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -313,6 +404,7 @@ function OrderDetailRows({
   const date = first?.bookingDate ? formatDateShort(first.bookingDate) : "—";
   const time = first?.visitTime ? formatTimeAmPm(first.visitTime) : "—";
   const name = first?.fullName ? String(first.fullName) : "—";
+  const dmcName = (order.raw.dmc as { name?: string } | undefined)?.name ? String((order.raw.dmc as { name: string }).name) : "—";
   const mealType = first?.mealType ? String(first.mealType) : "—";
   const mealSpecific = first?.mealSpecificType ? String(first.mealSpecificType) : "—";
   const adults = first?.adultCount != null ? String(first.adultCount) : "—";
@@ -326,6 +418,7 @@ function OrderDetailRows({
       {row("date", "Date", date, "calendar-outline")}
       {row("time", "Time", time, "time-outline")}
       {row("name", "Name", name, "person-outline")}
+      {row("dmc", "DMC", dmcName, "business-outline")}
       {row("mealType", "Meal type", mealType, "restaurant-outline")}
       {row("meal", "Meal", mealSpecific, "nutrition-outline")}
       {row("guests", "Guests", String(guestCount), "people-outline")}

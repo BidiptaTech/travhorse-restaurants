@@ -7,10 +7,18 @@ export const AUTH_LOGIN_ENDPOINT = apiUrl("restaurant-login");
 /** Logout API endpoint (POST). */
 export const AUTH_LOGOUT_ENDPOINT = apiUrl("restaurant-logout");
 
+export interface DmcUser {
+  id: string;
+  email: string;
+  name: string;
+  dmc: string ;
+}
+
 export interface User {
   id: string;
   email: string;
   name?: string;
+  dmcUsers?: DmcUser[]; // ✅ add this
 }
 
 export interface AuthState {
@@ -41,6 +49,7 @@ const authSlice = createSlice({
         token: state.token ? `${state.token.slice(0, 20)}...` : null,
         isAuthenticated: state.isAuthenticated,
       });
+      console.log("[authSlice] login data stored:", action.payload);
     },
     signOut: (state) => {
       state.user = null;

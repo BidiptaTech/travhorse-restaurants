@@ -26,6 +26,8 @@ export interface ParsedTicket {
   p?: number;
   // Reference
   ref?: string;
+  // DMC name
+  dmc?: string;
 }
 
 export function parseScannedTicket(raw: string | null): ParsedTicket | null {
