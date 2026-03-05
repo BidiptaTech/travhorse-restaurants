@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { apiUrl } from "@/constants/api";
 import type { RootState } from "@/store";
+import { signOut } from "@/store/slices/authSlice";
+import { clearAuth, loadAuth } from "@/utils/authStorage";
 
 /** GET restaurant orders (ongoing + upcoming; past ignored). */
 export const RESTAURANT_ORDERS_ENDPOINT = apiUrl("restaurant-orders");
@@ -69,7 +71,7 @@ function normalizeOrder(raw: RawRestaurantOrder): RestaurantOrder {
   const children = Number(first?.childCount ?? 0);
   return {
     id: String(raw.id ?? raw.booking_id ?? ""),
-    bookingId: String(raw.booking_id ?? raw.id ?? ""),
+    bookingId: String(raw.tour_id ?? raw.booking_id ?? raw.id ?? ""),
     bookingDate: String(first?.bookingDate ?? ""),
     bookingTime: String(first?.visitTime ?? ""),
     guests: adults + children,
@@ -87,8 +89,9 @@ export const fetchRestaurantOrders = createAsyncThunk<
   { type: OrdersType; orders: RestaurantOrder[] },
   OrdersType,
   { state: RootState }
->("orders/fetchRestaurantOrders", async (type, { getState, rejectWithValue }) => {
-  const token = getState().auth.token;
+>("orders/fetchRestaurantOrders", async (type, { dispatch, rejectWithValue }) => {
+  const auth = await loadAuth();
+  const token = auth?.token ?? null;
   if (!token) {
     return rejectWithValue("Not authenticated");
   }
@@ -104,6 +107,17 @@ export const fetchRestaurantOrders = createAsyncThunk<
 
   const json = await res.json().catch(() => ({}));
   console.log("[orders] API response", { type, status: res.status, data: json });
+
+  // Token expired, invalid, or server error (500) – clear auth and force navigate to login
+  if (res.status === 401 || res.status === 403 || res.status === 500) {
+    dispatch(signOut());
+    await clearAuth().catch(() => {});
+    return rejectWithValue(
+      res.status === 500
+        ? "Server error. Please sign in again."
+        : "Session expired. Please sign in again."
+    );
+  }
 
   if (!res.ok) {
     return rejectWithValue(

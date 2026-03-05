@@ -1,49 +1,37 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Alert,
-  Pressable,
-  Share,
-  ActivityIndicator,
-  Linking,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useColorScheme } from "nativewind";
-import { Swipeable } from "react-native-gesture-handler";
-import { setStoredTheme } from "../../utils/themeStorage";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import { signOut, AUTH_LOGOUT_ENDPOINT } from "../../store/slices/authSlice";
-import { clearAuth } from "../../utils/authStorage";
-import { apiUrl } from "../../constants/api";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getTodayScans,
-  addTodayScan,
-  deleteTodayScan,
-  type TodayScanItem,
-} from "../../utils/todayScansStorage";
+    Alert,
+    Dimensions,
+    Image,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { apiUrl } from "../../constants/api";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { signOut } from "../../store/slices/authSlice";
+import { clearAuth, loadAuth } from "../../utils/authStorage";
 import { addHistoryScan } from "../../utils/scanHistoryStorage";
 import {
-  parseScannedTicket,
-  formatTicketDisplay,
+    formatTicketDisplay,
+    parseScannedTicket,
 } from "../../utils/ticketDisplay";
-
-const MENU_FEATURES = [
-  { id: "ongoing", icon: "time-outline", label: "Ongoing" },
-  { id: "upcoming", icon: "calendar-outline", label: "Upcoming" },
-  // { id: "support", icon: "help-circle-outline", label: "Customer support" },
-  { id: "share", icon: "share-social-outline", label: "Share app" },
-  { id: "appearance", icon: "contrast-outline", label: "Appearance" },
-  { id: "delete-account", icon: "trash-outline", label: "Delete account" },
-  { id: "sign-out", icon: "log-out-outline", label: "Sign out" },
-] as const;
+import {
+    addTodayScan,
+    deleteTodayScan,
+    getTodayScans,
+    type TodayScanItem,
+} from "../../utils/todayScansStorage";
 
 export default function TicketScannerHome() {
   const [scanVisible, setScanVisible] = useState(false);
@@ -57,7 +45,6 @@ export default function TicketScannerHome() {
     "Restaurant ID not found",
   );
   const [restaurantIdErrorMessage, setRestaurantIdErrorMessage] = useState("");
-  // const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [redeemInfoVisible, setRedeemInfoVisible] = useState(false);
   const [redeemInfoMessage, setRedeemInfoMessage] = useState<string | null>(
     null,
@@ -73,10 +60,6 @@ export default function TicketScannerHome() {
   const redeemSuccessToastTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
-  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
-  const [signOutVisible, setSignOutVisible] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [deleteScanVisible, setDeleteScanVisible] = useState(false);
   const [scanToDelete, setScanToDelete] = useState<
     | (TodayScanItem & { isHistory?: false })
@@ -85,10 +68,9 @@ export default function TicketScannerHome() {
   >(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [todayScans, setTodayScans] = useState<TodayScanItem[]>([]);
-  const [dmcModalVisible, setDmcModalVisible] = useState(false);
-  const { colorScheme, setColorScheme } = useColorScheme();
+  const { colorScheme } = useColorScheme();
   const dispatch = useAppDispatch();
-  const { token, user } = useAppSelector((s) => s.auth);
+  const { user } = useAppSelector((s) => s.auth);
   const openTodaySwipeRef = useRef<Swipeable | null>(null);
 
   const userId = user?.id ?? "";
@@ -109,54 +91,6 @@ export default function TicketScannerHome() {
       }
     };
   }, []);
-
-  const onMenuFeature = useCallback((id: string) => {
-    setMenuOpen(false);
-    if (id === "sign-out") {
-      setSignOutVisible(true);
-      return;
-    }
-    if (id === "appearance") {
-      setThemeModalVisible(true);
-      return;
-    }
-    if (id === "ongoing") {
-      router.push("/(tabs)/ongoing" as any);
-      return;
-    }
-    if (id === "upcoming") {
-      router.push("/(tabs)/upcoming" as any);
-      return;
-    }
-    if (id === "delete-account") {
-      setDeleteAccountVisible(true);
-      return;
-    }
-    // if (id === "support") {
-    //   setSupportModalVisible(true);
-    //   return;
-    // }
-    if (id === "share") {
-      Share.share({
-        message:
-          "Check out this restaurant ticket checker app I’m using to scan and validate tickets.",
-      }).catch(() => {});
-      return;
-    }
-    // Placeholder actions for Ongoing / Upcoming
-    Alert.alert("Coming soon", `${id} section is not ready yet.`, [
-      { text: "OK" },
-    ]);
-  }, []);
-
-  const setTheme = useCallback(
-    (theme: "light" | "dark") => {
-      setColorScheme(theme);
-      setStoredTheme(theme);
-      setThemeModalVisible(false);
-    },
-    [setColorScheme],
-  );
 
   const openScanner = useCallback(async () => {
     if (!user?.id?.trim()) {
@@ -284,7 +218,9 @@ export default function TicketScannerHome() {
 
   const onConfirmScannedTicket = useCallback(async () => {
     const code = scannedData?.trim() ?? "";
-    const uid = user?.id ?? "";
+    const auth = await loadAuth();
+    const token = auth?.token ?? null;
+    const uid = auth?.user?.id ?? user?.id ?? "";
 
     if (!code || !uid) {
       return;
@@ -329,6 +265,14 @@ export default function TicketScannerHome() {
 
       const data = await res.json().catch(() => ({}));
       console.log("[Redeem] response", { status: res.status, data });
+
+      // Token expired, invalid, or server error (500) – clear auth and force navigate to login
+      if (res.status === 401 || res.status === 403 || res.status === 500) {
+        dispatch(signOut());
+        await clearAuth().catch(() => {});
+        router.replace("/(auth-pages)/SignIn");
+        return;
+      }
 
       if (!res.ok || data?.success === false) {
         const message =
@@ -390,44 +334,11 @@ export default function TicketScannerHome() {
       );
       setRedeemFailedVisible(true);
     }
-  }, [scannedData, user?.id, token]);
+  }, [dispatch, scannedData, user?.id]);
 
   const onDismissScanResult = useCallback(() => {
     setScanResultVisible(false);
     setScannedData(null);
-  }, []);
-
-  const onDismissDeleteAccount = useCallback(() => {
-    setDeleteAccountVisible(false);
-  }, []);
-
-  const onConfirmSignOut = useCallback(async () => {
-    setSignOutVisible(false);
-
-    if (token) {
-      try {
-        const res = await fetch(AUTH_LOGOUT_ENDPOINT, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const data = await res.json().catch(() => ({}));
-        console.log("[Logout] response", { status: res.status, data });
-      } catch (err) {
-        console.log("[Logout] error", err);
-        // Still sign out locally if logout API fails
-      }
-    }
-
-    dispatch(signOut());
-    clearAuth().catch(() => {});
-    router.replace("/(auth-pages)/SignIn");
-  }, [dispatch, token]);
-
-  const onDismissSignOut = useCallback(() => {
-    setSignOutVisible(false);
   }, []);
 
   const onConfirmDeleteScan = useCallback(async () => {
@@ -456,10 +367,8 @@ export default function TicketScannerHome() {
   const iconColor = isDark ? "#ffffff" : "#4A4A4A"; // n400
   const headerBg = isDark ? "#151718" : "#F5F5F7"; // n50 / b50
   const contentBg = isDark ? "#151718" : "#F5F5F7"; // n50 / b50
-  const cardBg = isDark ? "#2A2A2E" : "#ffffff"; // n75 / white
   const cardBgAlt = isDark ? "#242428" : "#EEEEF0"; // n6 / light gray
   const qrPlaceholderBg = isDark ? "#1A1A1C" : "#E5E5E7";
-  const borderColor = isDark ? "#3A3A40" : "#E5E5E7"; // n100 / border
   const textPrimary = isDark ? "#ffffff" : "#4A4A4A"; // n400
   const textSecondary = isDark ? "#9CA3AF" : "#6B6B70"; // n500 / g60
 
@@ -478,19 +387,18 @@ export default function TicketScannerHome() {
           className="px-4 pt-4 pb-3 flex-row items-center justify-between"
           style={{ backgroundColor: headerBg }}
         >
-          <View className="flex-row items-center">
-            <TouchableOpacity
-              className="mr-3"
-              onPress={() => setMenuOpen(true)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="menu" size={24} color={iconColor} />
-            </TouchableOpacity>
+          <View className="flex-row items-center flex-1">
+            <Image
+              source={require("@/assets/images/adaptive-icon2.png")}
+              style={{ width: 32, height: 32, borderRadius: 8 }}
+              resizeMode="cover"
+            />
             <Text
-              className="text-xl font-semibold"
+              className="text-xl font-semibold ml-3"
               style={{ color: textPrimary }}
+              numberOfLines={1}
             >
-              Ticket Scanner
+              {user?.name || "Restaurant"}
             </Text>
           </View>
           <TouchableOpacity
@@ -507,17 +415,6 @@ export default function TicketScannerHome() {
           style={{ backgroundColor: contentBg }}
         >
           {/* Event banner – primary colour like login */}
-          <View
-            className="rounded-lg px-4 py-3 mb-4"
-            style={{ backgroundColor: primary }}
-          >
-            <Text className="text-xs text-white opacity-80 mb-1">
-              Restaurant
-            </Text>
-            <Text className="text-white text-base font-semibold">
-              {user?.name || "Wine Tasting Night"}
-            </Text>
-          </View>
 
           {/* Stats row */}
           {/* <View className="flex-row mb-4">
@@ -577,7 +474,7 @@ export default function TicketScannerHome() {
           >
             <Ionicons name="camera" size={18} color="#ffffff" />
             <Text className="text-white text-base font-semibold ml-2">
-              Scan Ticket
+              Scan Voucher
             </Text>
           </TouchableOpacity>
 
@@ -623,16 +520,18 @@ export default function TicketScannerHome() {
                         <Ionicons name="close" size={24} color="#ffffff" />
                       </TouchableOpacity>
                     </View>
-                    <View className="flex-1 overflow-hidden">
-                      <CameraView
-                        style={StyleSheet.absoluteFill}
-                        facing="back"
-                        barcodeScannerSettings={{
-                          barcodeTypes: ["qr"],
-                        }}
-                        onBarcodeScanned={onBarcodeScanned}
-                      />
-                      <View style={styles.scanOverlay} pointerEvents="none" />
+                    <View style={styles.scannerContainer}>
+                      <View style={styles.scannerViewfinder}>
+                        <CameraView
+                          style={StyleSheet.absoluteFill}
+                          facing="back"
+                          barcodeScannerSettings={{
+                            barcodeTypes: ["qr"],
+                          }}
+                          onBarcodeScanned={onBarcodeScanned}
+                        />
+                        <View style={styles.scanOverlay} pointerEvents="none" />
+                      </View>
                     </View>
                   </SafeAreaView>
                 </>
@@ -726,13 +625,17 @@ export default function TicketScannerHome() {
                             >
                               <Text
                                 className={`text-xs flex-shrink ${highlight ? "font-semibold" : ""}`}
-                                style={{ color: highlight ? primary : textSecondary }}
+                                style={{
+                                  color: highlight ? primary : textSecondary,
+                                }}
                               >
                                 {label}
                               </Text>
                               <Text
                                 className={`text-sm flex-1 text-right ml-2 ${highlight ? "font-bold" : "font-semibold"}`}
-                                style={{ color: highlight ? primary : textPrimary }}
+                                style={{
+                                  color: highlight ? primary : textPrimary,
+                                }}
                                 numberOfLines={2}
                               >
                                 {String(value)}
@@ -778,7 +681,7 @@ export default function TicketScannerHome() {
                             style={{ color: textPrimary }}
                             selectable
                           >
-                            {scannedData ?? "—"}
+                            {scannedData ?? "\u2014"}
                           </Text>
                         </View>
                       );
@@ -887,7 +790,7 @@ export default function TicketScannerHome() {
             className="text-sm font-semibold mb-2"
             style={{ color: textPrimary }}
           >
-            Recent Tickets
+            Meal Voucher Redeemed
           </Text>
 
           {todayScans.length === 0 ? (
@@ -902,13 +805,13 @@ export default function TicketScannerHome() {
                 style={{ marginBottom: 8 }}
               />
               <Text className="text-sm" style={{ color: textSecondary }}>
-                No tickets scanned today.
+                No vouchers scanned today.
               </Text>
             </View>
           ) : (
             <>
               <Text className="text-xs mb-2" style={{ color: textSecondary }}>
-                {todayScans.length} scanned today
+                {todayScans.length} vouchers scanned today
               </Text>
               {todayScans
                 .slice()
@@ -980,21 +883,42 @@ export default function TicketScannerHome() {
                             const { title, subtitle } = formatTicketDisplay(
                               item.code,
                             );
+                            const ticket = parseScannedTicket(item.code);
+                            const dmcName = ticket?.dmc;
                             return (
                               <>
-                                <Text
-                                  className="text-sm font-semibold"
-                                  style={{ color: textPrimary }}
-                                  numberOfLines={1}
-                                >
-                                  {title}
-                                </Text>
+                                <View className="flex-row justify-between items-start mb-0.5">
+                                  <Text
+                                    className="text-sm font-semibold flex-1 mr-2"
+                                    style={{ color: textPrimary }}
+                                    numberOfLines={1}
+                                  >
+                                    {title}
+                                  </Text>
+                                  {dmcName ? (
+                                    <View
+                                      className="px-2 py-0.5 rounded-md"
+                                      style={{
+                                        backgroundColor:
+                                          "rgba(26, 127, 59, 0.2)",
+                                      }}
+                                    >
+                                      <Text
+                                        className="text-[11px] font-semibold"
+                                        style={{ color: "#1A7F3B" }}
+                                        numberOfLines={1}
+                                      >
+                                        {dmcName}
+                                      </Text>
+                                    </View>
+                                  ) : null}
+                                </View>
                                 <Text
                                   className="text-xs"
                                   style={{ color: textSecondary }}
                                 >
                                   {subtitle
-                                    ? `${item.time} • ${subtitle}`
+                                    ? `${item.time} \u2022 ${subtitle}`
                                     : item.time}
                                 </Text>
                               </>
@@ -1009,347 +933,6 @@ export default function TicketScannerHome() {
           )}
         </View>
       </ScrollView>
-
-      {/* Appearance (Dark / Light) modal */}
-      <Modal
-        visible={themeModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setThemeModalVisible(false)}
-      >
-        <View style={styles.themeModalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setThemeModalVisible(false)}
-          />
-          <View
-            className="bg-[#18191C] rounded-2xl overflow-hidden"
-            style={styles.themeModalBox}
-          >
-            <View className="px-4 py-3 border-b border-[#2A2B30]">
-              <Text className="text-white text-lg font-semibold">
-                Appearance
-              </Text>
-              <Text className="text-gray-400 text-sm mt-0.5">
-                Choose light or dark mode
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setTheme("light")}
-              className="flex-row items-center px-4 py-4 border-b border-[#2A2B30] active:opacity-80"
-            >
-              <View className="w-10 h-10 rounded-full bg-[#2A2B30] items-center justify-center mr-3">
-                <Ionicons name="sunny-outline" size={22} color="#ffffff" />
-              </View>
-              <Text className="text-white text-base font-medium flex-1">
-                Light mode
-              </Text>
-              {colorScheme === "light" && (
-                <Ionicons name="checkmark-circle" size={24} color={primary} />
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setTheme("dark")}
-              className="flex-row items-center px-4 py-4 active:opacity-80"
-            >
-              <View className="w-10 h-10 rounded-full bg-[#2A2B30] items-center justify-center mr-3">
-                <Ionicons name="moon-outline" size={22} color="#ffffff" />
-              </View>
-              <Text className="text-white text-base font-medium flex-1">
-                Dark mode
-              </Text>
-              {colorScheme === "dark" && (
-                <Ionicons name="checkmark-circle" size={24} color={primary} />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Delete account – email instruction only */}
-      <Modal
-        visible={deleteAccountVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={onDismissDeleteAccount}
-      >
-        <View style={styles.resultModalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={onDismissDeleteAccount}
-          />
-          <View
-            style={[
-              styles.resultModalCard,
-              {
-                backgroundColor: isDark ? "#151718" : "#F5F5F7",
-                borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
-              },
-            ]}
-          >
-            <View className="items-center pt-4 pb-2 px-4">
-              <View
-                className="w-14 h-14 rounded-full items-center justify-center mb-3"
-                style={{ backgroundColor: "rgba(248, 113, 113, 0.2)" }}
-              >
-                <Ionicons name="trash-outline" size={32} color="#ef4444" />
-              </View>
-              <Text
-                className="text-lg font-bold mb-1 text-center"
-                style={{ color: textPrimary }}
-              >
-                Delete account
-              </Text>
-              <Text
-                className="text-sm text-center mb-4"
-                style={{ color: textSecondary }}
-              >
-                To delete your account, send an email to{" "}
-                <Text className="font-semibold" style={{ color: textPrimary }}>
-                  travcadmin@travclicks.com
-                </Text>
-                . Your account will be deleted within 72 hours.
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  const subject = encodeURIComponent(
-                    "Account Deletion Request - Travhorse Restaurants",
-                  );
-                  const body = encodeURIComponent(
-                    "Hello Travhorse Support Team,\n\n" +
-                      "I would like to request the permanent deletion of my restaurant account from the Travhorse Restaurants app.\n\n" +
-                      "Email: " +
-                      (user?.email ?? "") +
-                      "\n" +
-                      "Restaurant ID: " +
-                      (user?.id ?? "") +
-                      "\n" +
-                      "Restaurant Name: " +
-                      (user?.name ?? "") +
-                      "\n\n" +
-                      "Please confirm once the account has been deleted.\n\n" +
-                      "Thank you.",
-                  );
-                  Linking.openURL(
-                    `mailto:travcadmin@travclicks.com?subject=${subject}&body=${body}`,
-                  );
-                }}
-                className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
-                style={{ backgroundColor: primary }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="mail" size={20} color="#ffffff" />
-                <Text className="text-base font-semibold text-white ml-2">
-                  Send email
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View className="px-4 pb-4">
-              <TouchableOpacity
-                onPress={onDismissDeleteAccount}
-                className="rounded-xl py-3.5 items-center justify-center"
-                style={{
-                  backgroundColor: isDark ? "#2A2A2E" : "#E5E5E7",
-                }}
-                activeOpacity={0.8}
-              >
-                <Text
-                  className="text-base font-semibold"
-                  style={{ color: textPrimary }}
-                >
-                  Close
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Sign out confirm modal */}
-      <Modal
-        visible={signOutVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={onDismissSignOut}
-      >
-        <View style={styles.resultModalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={onDismissSignOut}
-          />
-          <View
-            style={[
-              styles.resultModalCard,
-              {
-                backgroundColor: isDark ? "#151718" : "#F5F5F7",
-                borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
-              },
-            ]}
-          >
-            <View className="items-center pt-3 pb-4 px-4">
-              <View
-                className="w-14 h-14 rounded-full items-center justify-center mb-3"
-                style={{ backgroundColor: "rgba(248, 113, 113, 0.18)" }}
-              >
-                <Ionicons name="log-out-outline" size={32} color="#f87171" />
-              </View>
-              <Text
-                className="text-lg font-bold mb-1 text-center"
-                style={{ color: textPrimary }}
-              >
-                Sign out?
-              </Text>
-              <Text
-                className="text-sm text-center"
-                style={{ color: textSecondary }}
-              >
-                You’ll be returned to the sign-in screen. You can log back in at
-                any time.
-              </Text>
-            </View>
-            <View className="flex-row px-4 pb-4" style={{ gap: 12 }}>
-              <TouchableOpacity
-                onPress={onDismissSignOut}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center"
-                style={{
-                  backgroundColor: isDark ? "#2A2B30" : "#e2e8f0",
-                }}
-                activeOpacity={0.8}
-              >
-                <Text
-                  className="text-base font-semibold"
-                  style={{ color: textPrimary }}
-                >
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onConfirmSignOut}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center"
-                style={{ backgroundColor: primary }}
-                activeOpacity={0.8}
-              >
-                <Text className="text-base font-semibold text-white">
-                  Sign out
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Customer support modal */}
-      {/* <Modal
-        visible={supportModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSupportModalVisible(false)}
-      >
-        <View style={styles.resultModalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setSupportModalVisible(false)}
-          />
-          <View
-            style={[
-              styles.resultModalCard,
-              {
-backgroundColor: isDark ? "#151718" : "#F5F5F7",
-                    borderColor: isDark ? "#2A2A2E" : "#E5E5E7",
-              },
-            ]}
-          >
-            <View className="items-center pt-4 pb-2 px-4">
-              <View
-                className="w-14 h-14 rounded-full items-center justify-center mb-3"
-                style={{ backgroundColor: isDark ? "rgba(59, 130, 246, 0.2)" : "rgba(59, 130, 246, 0.12)" }}
-              >
-                <Ionicons name="headset" size={32} color="#3b82f6" />
-              </View>
-              <Text
-                className="text-lg font-bold mb-1 text-center"
-                style={{ color: textPrimary }}
-              >
-                Customer support
-              </Text>
-              <Text
-                className="text-sm text-center px-2 mb-4"
-                style={{ color: textSecondary }}
-              >
-                Need help with scanning or vouchers? Reach us by phone or email.
-              </Text>
-              <View className="w-full" style={{ gap: 12 }}>
-                <TouchableOpacity
-                  onPress={() => Linking.openURL("tel:+10000000000")}
-                  className="flex-row items-center rounded-xl py-3.5 px-4"
-                  style={{
-                    backgroundColor: isDark ? "#1e3a5f" : "#eff6ff",
-                    borderWidth: 1,
-                    borderColor: isDark ? "#2563eb" : "#bfdbfe",
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: "rgba(59, 130, 246, 0.2)" }}
-                  >
-                    <Ionicons name="call" size={20} color="#3b82f6" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-xs" style={{ color: textSecondary }}>
-                      Phone
-                    </Text>
-                    <Text className="text-base font-semibold" style={{ color: textPrimary }}>
-                      +1 (000) 000-0000
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => Linking.openURL("mailto:support@travhorserestaurants.com")}
-                  className="flex-row items-center rounded-xl py-3.5 px-4"
-                  style={{
-                    backgroundColor: isDark ? "#1e3a5f" : "#eff6ff",
-                    borderWidth: 1,
-                    borderColor: isDark ? "#2563eb" : "#bfdbfe",
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: "rgba(59, 130, 246, 0.2)" }}
-                  >
-                    <Ionicons name="mail" size={20} color="#3b82f6" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-xs" style={{ color: textSecondary }}>
-                      Email
-                    </Text>
-                    <Text className="text-base font-semibold" style={{ color: textPrimary }} numberOfLines={1}>
-                      support@travhorserestaurants.com
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={textSecondary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <View className="px-4 pb-4 pt-2">
-              <TouchableOpacity
-                onPress={() => setSupportModalVisible(false)}
-                className="rounded-xl py-3.5 items-center justify-center"
-                style={{
-                  backgroundColor: isDark ? "#2A2B30" : "#e2e8f0",
-                }}
-                activeOpacity={0.8}
-              >
-                <Text className="text-base font-semibold" style={{ color: textPrimary }}>
-                  Close
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal> */}
 
       {/* Restaurant ID not found – styled error modal */}
       <Modal
@@ -1742,155 +1325,6 @@ backgroundColor: isDark ? "#151718" : "#F5F5F7",
         </View>
       </Modal>
 
-      {/* Side menu drawer */}
-      <Modal
-        visible={menuOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMenuOpen(false)}
-      >
-        <View style={styles.menuBackdrop}>
-          <View style={styles.menuPanel}>
-            <SafeAreaView edges={["top"]} style={styles.menuSafe}>
-              <View className="flex-row items-center justify-between px-4 py-3 border-b border-[#2A2B30]">
-                <Text className="text-white text-lg font-semibold">Menu</Text>
-                <TouchableOpacity
-                  onPress={() => setMenuOpen(false)}
-                  className="w-9 h-9 rounded-full bg-[#2A2B30] items-center justify-center"
-                >
-                  <Ionicons name="close" size={20} color="#ffffff" />
-                </TouchableOpacity>
-              </View>
-              <ScrollView
-                className="flex-1"
-                contentContainerStyle={{ paddingVertical: 8 }}
-                showsVerticalScrollIndicator={false}
-              >
-                {/* Profile card at top of drawer */}
-                {/* <View className="px-4 py-4 border-b border-[#2A2B30] mb-1 flex-row items-center">
-                  <View className="w-11 h-11 rounded-full bg-[#2A2B30] items-center justify-center mr-3">
-                    <Ionicons name="person-outline" size={24} color="#ffffff" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-semibold">
-                      {user?.name || "Event Host"}
-                    </Text>
-                    <Text className="text-xs text-gray-400">
-                      {user?.email || "host@travhorserestaurants.com"}
-                    </Text>
-                  </View>
-                </View> */}
-                <TouchableOpacity
-                  onPress={() => setDmcModalVisible(true)}
-                  activeOpacity={0.8}
-                >
-                  <View className="px-4 py-4 border-b border-[#2A2B30] mb-1 flex-row items-center">
-                    <View className="w-11 h-11 rounded-full bg-[#2A2B30] items-center justify-center mr-3">
-                      <Ionicons
-                        name="person-outline"
-                        size={24}
-                        color="#ffffff"
-                      />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-white text-base font-semibold">
-                        {user?.name || "Event Host"}
-                      </Text>
-                      <Text className="text-xs text-gray-400">
-                        {user?.email || "host@travhorserestaurants.com"}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-                <Modal
-                  visible={dmcModalVisible}
-                  transparent
-                  animationType="fade"
-                  onRequestClose={() => setDmcModalVisible(false)}
-                >
-                  <View className="flex-1 bg-black/70 justify-center px-6">
-                    <View className="bg-[#1E1F23] rounded-2xl p-6 max-h-[80%]">
-                      <Text className="text-white text-xl font-bold mb-5">
-                        DMC Accounts
-                      </Text>
-
-                      {user?.dmcUsers?.length ? (
-                        user.dmcUsers.map((dmcUser, index) => (
-                          <View
-                            key={dmcUser.id}
-                            className="mb-4 p-4 rounded-xl bg-[#2A2B30]"
-                          >
-                            {/* Company Name */}
-                            <Text className="text-[#F4C430] font-semibold text-sm mb-2">
-                              {index + 1}. {dmcUser.dmc}
-                            </Text>
-
-                            {/* User Info */}
-                            <View className="flex-row items-center">
-                              <View className="w-9 h-9 rounded-full bg-[#1E1F23] items-center justify-center mr-3">
-                                <Ionicons
-                                  name="person"
-                                  size={16}
-                                  color="#fff"
-                                />
-                              </View>
-
-                              <View>
-                                <Text className="text-white font-medium">
-                                  {dmcUser.name}
-                                </Text>
-                                <Text className="text-gray-400 text-xs">
-                                  {dmcUser.email}
-                                </Text>
-                              </View>
-                            </View>
-                          </View>
-                        ))
-                      ) : (
-                        <Text className="text-gray-400 text-sm">
-                          No DMC users available
-                        </Text>
-                      )}
-
-                      <TouchableOpacity
-                        onPress={() => setDmcModalVisible(false)}
-                        className="mt-4 bg-[#F04E4E] py-3 rounded-xl"
-                      >
-                        <Text className="text-white text-center font-semibold">
-                          Close
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </Modal>
-
-                {MENU_FEATURES.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => onMenuFeature(item.id)}
-                    className="flex-row items-center px-4 py-3 active:opacity-80"
-                  >
-                    <View className="w-9 h-9 rounded-lg bg-[#2A2B30] items-center justify-center mr-3">
-                      <Ionicons
-                        name={item.icon as any}
-                        size={20}
-                        color="#ffffff"
-                      />
-                    </View>
-                    <Text className="text-white text-base font-medium">
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </SafeAreaView>
-          </View>
-          <Pressable
-            style={styles.menuOverlay}
-            onPress={() => setMenuOpen(false)}
-          />
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1901,39 +1335,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
+  scannerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  scannerViewfinder: {
+    width: Dimensions.get("window").width - 40,
+    maxWidth: 340,
+    height: 280,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
   scanOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 2,
     borderColor: "rgba(214, 40, 40, 0.8)",
-    borderRadius: 24,
-    margin: 48,
+    borderRadius: 20,
+    margin: 8,
     backgroundColor: "transparent",
-  },
-  menuBackdrop: {
-    flex: 1,
-    flexDirection: "row",
-  },
-  menuPanel: {
-    width: 280,
-    backgroundColor: "#18191C",
-  },
-  menuSafe: {
-    flex: 1,
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  themeModalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  themeModalBox: {
-    minWidth: 280,
-    alignSelf: "stretch",
-    marginHorizontal: 24,
   },
   resultModalBackdrop: {
     flex: 1,

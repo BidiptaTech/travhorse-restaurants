@@ -1,27 +1,32 @@
-import React, { useState, useEffect } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  RefreshControl,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "nativewind";
-import { router } from "expo-router";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  fetchRestaurantOrders,
-  type RestaurantOrder,
-  type RawRestaurantOrder,
-  type OrderDataItem,
+    fetchRestaurantOrders,
+    type OrderDataItem,
+    type RestaurantOrder,
 } from "@/store/slices/ordersSlice";
 import { formatDateShort, formatTimeAmPm } from "@/utils/dateFormat";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
+import { useColorScheme } from "nativewind";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import {
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+// DMC dropdown: show 5 rows visible, then scroll for the rest
+const DMC_ROW_HEIGHT = 44;
+const DMC_VISIBLE_ROWS = 5;
+const DMC_LIST_MAX_HEIGHT = DMC_ROW_HEIGHT * DMC_VISIBLE_ROWS;
 
 export default function OngoingScreen() {
   const { colorScheme } = useColorScheme();
@@ -39,14 +44,27 @@ export default function OngoingScreen() {
   const rowBg = isDark ? "#1D1F24" : "#f8fafc";
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<RestaurantOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<RestaurantOrder | null>(
+    null,
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDmc, setSelectedDmc] = useState<string | null>(null);
-  const [showAllDmcs, setShowAllDmcs] = useState(false);
+  const [dmcDropdownVisible, setDmcDropdownVisible] = useState(false);
+  const [dmcSearchQuery, setDmcSearchQuery] = useState("");
+  const [dmcTriggerLayout, setDmcTriggerLayout] = useState({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+  });
+  const dmcTriggerRef = useRef<View>(null);
 
-  useEffect(() => {
-    dispatch(fetchRestaurantOrders("ongoing"));
-  }, [dispatch]);
+  // Fetch ongoing orders every time the screen is focused (e.g. when user clicks Ongoing button)
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchRestaurantOrders("ongoing"));
+    }, [dispatch]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -55,25 +73,36 @@ export default function OngoingScreen() {
   };
 
   // Extract unique DMC names from orders
-  const dmcNames = Array.from(
-    new Set(
-      orders
-        .map((o) => (o.raw.dmc as { name?: string } | undefined)?.name)
-        .filter((name): name is string => Boolean(name))
-    )
-  ).sort();
+  const dmcNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          orders
+            .map((o) => (o.raw.dmc as { name?: string } | undefined)?.name)
+            .filter((name): name is string => Boolean(name)),
+        ),
+      ).sort(),
+    [orders],
+  );
+
+  const filteredDmcNames = useMemo(() => {
+    const q = dmcSearchQuery.trim().toLowerCase();
+    if (!q) return dmcNames;
+    return dmcNames.filter((name) => name.toLowerCase().includes(q));
+  }, [dmcNames, dmcSearchQuery]);
 
   const filteredOrders = orders.filter((o) => {
-    const matchesSearch = o.bookingId.toLowerCase().includes(searchQuery.trim().toLowerCase());
-    const matchesDmc = selectedDmc === null || (o.raw.dmc as { name?: string } | undefined)?.name === selectedDmc;
+    const matchesSearch = o.bookingId
+      .toLowerCase()
+      .includes(searchQuery.trim().toLowerCase());
+    const matchesDmc =
+      selectedDmc === null ||
+      (o.raw.dmc as { name?: string } | undefined)?.name === selectedDmc;
     return matchesSearch && matchesDmc;
   });
 
   return (
-    <SafeAreaView
-      className="flex-1"
-      style={{ backgroundColor: bg }}
-    >
+    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }}>
       <View
         className="px-4 py-3 flex-row items-center"
         style={{ backgroundColor: headerBg }}
@@ -107,7 +136,7 @@ export default function OngoingScreen() {
             style={{ marginRight: 8 }}
           />
           <TextInput
-            placeholder="Search by booking ID"
+            placeholder="Search by Tour ID"
             placeholderTextColor={textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -126,74 +155,159 @@ export default function OngoingScreen() {
           )}
         </View>
 
-        {/* DMC Filter Section */}
+        {/* DMC Filter Section – searchable dropdown */}
         {dmcNames.length > 0 && (
           <View className="mt-3">
-            <Text className="text-xs font-semibold mb-2" style={{ color: textSecondary }}>
+            <Text
+              className="text-xs font-semibold mb-2"
+              style={{ color: textSecondary }}
+            >
               Filter by DMC
             </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 4 }}
-            >
+            <View ref={dmcTriggerRef} collapsable={false}>
               <TouchableOpacity
-                onPress={() => setSelectedDmc(null)}
-                className="px-3 py-1.5 rounded-full mr-2"
+                onPress={() => {
+                  dmcTriggerRef.current?.measureInWindow(
+                    (x, y, width, height) => {
+                      setDmcTriggerLayout({ x, y, width, height });
+                      setDmcDropdownVisible(true);
+                    },
+                  );
+                }}
+                className="rounded-lg px-3 py-2.5 flex-row items-center justify-between"
                 style={{
-                  backgroundColor: selectedDmc === null
-                    ? "#D62828"
-                    : isDark ? "#1D1F24" : "#e5e7eb",
+                  backgroundColor: isDark ? "#1D1F24" : "#e5e7eb",
+                  borderWidth: 1,
+                  borderColor: isDark ? "#2A2B30" : "#cbd5e1",
                 }}
                 activeOpacity={0.7}
               >
                 <Text
-                  className="text-xs font-medium"
+                  className="text-sm flex-1"
                   style={{
-                    color: selectedDmc === null
-                      ? "#ffffff"
-                      : textSecondary,
+                    color: selectedDmc ? textPrimary : textSecondary,
                   }}
+                  numberOfLines={1}
                 >
-                  All
+                  {selectedDmc || "Filter by DMC"}
                 </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={18}
+                  color={textSecondary}
+                  style={{ marginLeft: 8 }}
+                />
               </TouchableOpacity>
-              {(showAllDmcs ? dmcNames : dmcNames.slice(0, 5)).map((dmcName) => (
-                <TouchableOpacity
-                  key={dmcName}
-                  onPress={() => setSelectedDmc(dmcName === selectedDmc ? null : dmcName)}
-                  className="px-3 py-1.5 rounded-full mr-2"
+            </View>
+
+            <Modal
+              visible={dmcDropdownVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setDmcDropdownVisible(false)}
+            >
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => {
+                  setDmcDropdownVisible(false);
+                  setDmcSearchQuery("");
+                }}
+              />
+              <View
+                style={[
+                  styles.dmcDropdownCard,
+                  {
+                    position: "absolute",
+                    top: dmcTriggerLayout.y + dmcTriggerLayout.height + 6,
+                    left: dmcTriggerLayout.x,
+                    width: dmcTriggerLayout.width,
+                    backgroundColor: modalBg,
+                    borderColor: modalBorder,
+                  },
+                ]}
+              >
+                <TextInput
+                  placeholder="Search DMC..."
+                  placeholderTextColor={textSecondary}
+                  value={dmcSearchQuery}
+                  onChangeText={setDmcSearchQuery}
+                  className="rounded-lg px-3 py-2.5 text-sm mb-2"
                   style={{
-                    backgroundColor: selectedDmc === dmcName
-                      ? "#D62828"
-                      : isDark ? "#1D1F24" : "#e5e7eb",
+                    backgroundColor: isDark ? "#0E1014" : "#f1f5f9",
+                    color: textPrimary,
+                    borderWidth: 1,
+                    borderColor: isDark ? "#2A2B30" : "#e2e8f0",
                   }}
-                  activeOpacity={0.7}
+                />
+                <ScrollView
+                  style={{ maxHeight: DMC_LIST_MAX_HEIGHT }}
+                  showsVerticalScrollIndicator={true}
+                  keyboardShouldPersistTaps="handled"
                 >
-                  <Text
-                    className="text-xs font-medium"
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedDmc(null);
+                      setDmcDropdownVisible(false);
+                      setDmcSearchQuery("");
+                    }}
+                    className="px-3 rounded-lg justify-center"
                     style={{
-                      color: selectedDmc === dmcName
-                        ? "#ffffff"
-                        : textSecondary,
+                      height: DMC_ROW_HEIGHT,
+                      backgroundColor:
+                        selectedDmc === null
+                          ? "rgba(214, 40, 40, 0.15)"
+                          : "transparent",
                     }}
                   >
-                    {dmcName}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {dmcNames.length > 5 && (
-              <TouchableOpacity
-                onPress={() => setShowAllDmcs(!showAllDmcs)}
-                className="mt-2 self-start"
-                activeOpacity={0.7}
-              >
-                <Text className="text-xs font-medium" style={{ color: "#D62828" }}>
-                  {showAllDmcs ? "Show Less" : `Show More (${dmcNames.length - 5})`}
-                </Text>
-              </TouchableOpacity>
-            )}
+                    <Text
+                      className="text-sm font-medium"
+                      style={{
+                        color: selectedDmc === null ? "#D62828" : textPrimary,
+                      }}
+                    >
+                      All
+                    </Text>
+                  </TouchableOpacity>
+                  {filteredDmcNames.map((dmcName) => (
+                    <TouchableOpacity
+                      key={dmcName}
+                      onPress={() => {
+                        setSelectedDmc(dmcName);
+                        setDmcDropdownVisible(false);
+                        setDmcSearchQuery("");
+                      }}
+                      className="px-3 rounded-lg justify-center"
+                      style={{
+                        height: DMC_ROW_HEIGHT,
+                        backgroundColor:
+                          selectedDmc === dmcName
+                            ? "rgba(214, 40, 40, 0.15)"
+                            : "transparent",
+                      }}
+                    >
+                      <Text
+                        className="text-sm"
+                        style={{
+                          color:
+                            selectedDmc === dmcName ? "#D62828" : textPrimary,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {dmcName}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {filteredDmcNames.length === 0 && (
+                    <Text
+                      className="text-sm py-3 px-3"
+                      style={{ color: textSecondary }}
+                    >
+                      No DMC found
+                    </Text>
+                  )}
+                </ScrollView>
+              </View>
+            </Modal>
           </View>
         )}
       </View>
@@ -203,13 +317,23 @@ export default function OngoingScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing || loading} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing || loading}
+            onRefresh={onRefresh}
+          />
         }
       >
         {error ? (
           <View className="items-center justify-center mt-16">
-            <Ionicons name="alert-circle-outline" size={32} color={textSecondary} />
-            <Text className="text-sm mt-2 text-center px-4" style={{ color: textSecondary }}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={32}
+              color={textSecondary}
+            />
+            <Text
+              className="text-sm mt-2 text-center px-4"
+              style={{ color: textSecondary }}
+            >
               {error}
             </Text>
           </View>
@@ -227,29 +351,56 @@ export default function OngoingScreen() {
                   <Ionicons name="ticket-outline" size={20} color="#ffffff" />
                 </View>
                 <View className="flex-1">
-                  <Text
-                    className="text-xs font-mono mb-0.5"
-                    style={{ color: textSecondary }}
-                  >
-                    Booking ID {order.bookingId}
-                  </Text>
+                  <View className="flex-row justify-between items-start mb-0.5">
+                    <Text
+                      className="text-xs font-mono flex-shrink"
+                      style={{ color: textSecondary }}
+                    >
+                      Tour ID {order.bookingId}
+                    </Text>
+                    {(order.raw.dmc as { name?: string } | undefined)?.name && (
+                      <View
+                        className="px-2 py-0.5 rounded-md flex-shrink-0"
+                        style={{ backgroundColor: "rgba(214, 40, 40, 0.15)" }}
+                      >
+                        <Text
+                          className="text-[11px] font-semibold"
+                          style={{ color: "#D62828" }}
+                        >
+                          {(order.raw.dmc as { name: string }).name}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text
                     className="text-sm font-semibold"
                     style={{ color: textPrimary }}
                   >
-                    {formatDateShort(order.bookingDate)} · {formatTimeAmPm(order.bookingTime)}
+                    {formatDateShort(order.bookingDate)} ·{" "}
+                    {formatTimeAmPm(order.bookingTime)}
                   </Text>
-                  <Text className="text-[11px]" style={{ color: textSecondary }}>
+                  <Text
+                    className="text-[11px]"
+                    style={{ color: textSecondary }}
+                  >
                     {order.guests} guest{order.guests !== 1 ? "s" : ""}
                     {order.mealType ? ` · ${order.mealType}` : ""}
                   </Text>
-                  {(order.raw.dmc as { name?: string } | undefined)?.name && (
-                    <View className="mt-1.5 self-start px-2 py-0.5 rounded-md" style={{ backgroundColor: "rgba(214, 40, 40, 0.15)" }}>
-                      <Text className="text-[11px] font-semibold" style={{ color: "#D62828" }}>
-                        DMC: {(order.raw.dmc as { name: string }).name}
-                      </Text>
-                    </View>
-                  )}
+                  {Array.isArray(order.raw.data) &&
+                    order.raw.data[0] &&
+                    (order.raw.data[0] as OrderDataItem).fullName && (
+                      <View
+                        className="mt-1.5 self-start px-2 py-0.5 rounded-md"
+                        style={{ backgroundColor: "rgba(214, 40, 40, 0.15)" }}
+                      >
+                        <Text
+                          className="text-[11px] font-semibold"
+                          style={{ color: "#D62828" }}
+                        >
+                          {(order.raw.data[0] as OrderDataItem).fullName}
+                        </Text>
+                      </View>
+                    )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -306,13 +457,23 @@ export default function OngoingScreen() {
                     className="w-11 h-11 rounded-xl items-center justify-center mr-3"
                     style={{ backgroundColor: "rgba(214, 40, 40, 0.15)" }}
                   >
-                    <Ionicons name="receipt-outline" size={24} color="#D62828" />
+                    <Ionicons
+                      name="receipt-outline"
+                      size={24}
+                      color="#D62828"
+                    />
                   </View>
                   <View>
-                    <Text className="text-[11px] uppercase tracking-wide" style={{ color: textSecondary }}>
-                      Booking
+                    <Text
+                      className="text-[11px] uppercase tracking-wide"
+                      style={{ color: textSecondary }}
+                    >
+                      Tour
                     </Text>
-                    <Text className="text-lg font-bold" style={{ color: textPrimary }}>
+                    <Text
+                      className="text-lg font-bold"
+                      style={{ color: textPrimary }}
+                    >
                       #{selectedOrder.bookingId}
                     </Text>
                   </View>
@@ -365,16 +526,17 @@ function OrderDetailRows({
   accentColor: string;
   onClose: () => void;
 }) {
-  const first = Array.isArray(order.raw?.data) && order.raw.data.length > 0
-    ? (order.raw.data[0] as OrderDataItem)
-    : null;
+  const first =
+    Array.isArray(order.raw?.data) && order.raw.data.length > 0
+      ? (order.raw.data[0] as OrderDataItem)
+      : null;
 
   const iconBg = accentColor + "18";
   const row = (
     key: string,
     label: string,
     value: string,
-    icon: React.ComponentProps<typeof Ionicons>["name"]
+    icon: React.ComponentProps<typeof Ionicons>["name"],
   ) => (
     <View
       key={key}
@@ -388,10 +550,17 @@ function OrderDetailRows({
         <Ionicons name={icon} size={20} color={accentColor} />
       </View>
       <View className="flex-1">
-        <Text className="text-[11px] uppercase tracking-wide mb-0.5" style={{ color: textSecondary }}>
+        <Text
+          className="text-[11px] uppercase tracking-wide mb-0.5"
+          style={{ color: textSecondary }}
+        >
           {label}
         </Text>
-        <Text className="text-sm font-semibold" style={{ color: textPrimary }} numberOfLines={2}>
+        <Text
+          className="text-sm font-semibold"
+          style={{ color: textPrimary }}
+          numberOfLines={2}
+        >
           {value || "—"}
         </Text>
       </View>
@@ -401,14 +570,26 @@ function OrderDetailRows({
   const date = first?.bookingDate ? formatDateShort(first.bookingDate) : "—";
   const time = first?.visitTime ? formatTimeAmPm(first.visitTime) : "—";
   const name = first?.fullName ? String(first.fullName) : "—";
-  const dmcName = (order.raw.dmc as { name?: string } | undefined)?.name ? String((order.raw.dmc as { name: string }).name) : "—";
+  const dmcName = (order.raw.dmc as { name?: string } | undefined)?.name
+    ? String((order.raw.dmc as { name: string }).name)
+    : "—";
   const mealType = first?.mealType ? String(first.mealType) : "—";
-  const mealSpecific = first?.mealSpecificType ? String(first.mealSpecificType) : "—";
+  const mealSpecific = first?.mealSpecificType
+    ? String(first.mealSpecificType)
+    : "—";
   const adults = first?.adultCount != null ? String(first.adultCount) : "—";
   const children = first?.childCount != null ? String(first.childCount) : "—";
-  const guestCount = order.guests > 0 ? order.guests : (first ? Number(first.adultCount ?? 0) + Number(first.childCount ?? 0) : 0);
-  const totalPrice = first?.totalPrice != null ? `SGD ${first.totalPrice}` : "—";
-  const specialRequests = first?.specialRequests ? String(first.specialRequests).trim() : "";
+  const guestCount =
+    order.guests > 0
+      ? order.guests
+      : first
+        ? Number(first.adultCount ?? 0) + Number(first.childCount ?? 0)
+        : 0;
+  const totalPrice =
+    first?.totalPrice != null ? `SGD ${first.totalPrice}` : "—";
+  const specialRequests = first?.specialRequests
+    ? String(first.specialRequests).trim()
+    : "";
 
   return (
     <View className="px-4 pt-4">
@@ -422,7 +603,14 @@ function OrderDetailRows({
       {row("adults", "Adults", adults, "man-outline")}
       {row("children", "Children", children, "happy-outline")}
       {row("total", "Total", totalPrice, "cash-outline")}
-      {specialRequests ? row("special", "Special requests", specialRequests, "document-text-outline") : null}
+      {specialRequests
+        ? row(
+            "special",
+            "Special requests",
+            specialRequests,
+            "document-text-outline",
+          )
+        : null}
 
       <TouchableOpacity
         onPress={onClose}
@@ -430,8 +618,16 @@ function OrderDetailRows({
         style={{ backgroundColor: isDark ? "#2A2B30" : "#e5e7eb" }}
         activeOpacity={0.8}
       >
-        <Ionicons name="close-circle-outline" size={20} color={textPrimary} style={{ marginRight: 8 }} />
-        <Text className="text-base font-semibold" style={{ color: textPrimary }}>
+        <Ionicons
+          name="close-circle-outline"
+          size={20}
+          color={textPrimary}
+          style={{ marginRight: 8 }}
+        />
+        <Text
+          className="text-base font-semibold"
+          style={{ color: textPrimary }}
+        >
           Close
         </Text>
       </TouchableOpacity>
@@ -457,5 +653,17 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     maxHeight: 400,
+  },
+  dmcDropdownCard: {
+    maxHeight: 320,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
