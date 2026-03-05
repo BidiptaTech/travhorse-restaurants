@@ -7,6 +7,7 @@ import {
     Alert,
     Dimensions,
     Image,
+    ImageBackground,
     Modal,
     Pressable,
     ScrollView,
@@ -376,26 +377,24 @@ export default function TicketScannerHome() {
     <SafeAreaView
       className="flex-1"
       style={{ backgroundColor: isDark ? "#151718" : "#F5F5F7" }}
+      edges={["top"]}
     >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
+      {/* Sticky header – stays fixed at top when scrolling */}
+      <ImageBackground
+        source={require("@/assets/images/top-bg-shape2.png")}
+        style={styles.headerBg}
+        resizeMode="stretch"
       >
-        {/* Header */}
-        <View
-          className="px-4 pt-4 pb-3 flex-row items-center justify-between"
-          style={{ backgroundColor: headerBg }}
-        >
-          <View className="flex-row items-center flex-1">
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
             <Image
               source={require("@/assets/images/adaptive-icon2.png")}
-              style={{ width: 32, height: 32, borderRadius: 8 }}
+              style={styles.headerLogo}
               resizeMode="cover"
             />
             <Text
               className="text-xl font-semibold ml-3"
-              style={{ color: textPrimary }}
+              style={{ color: "#ffffff" }}
               numberOfLines={1}
             >
               {user?.name || "Restaurant"}
@@ -403,13 +402,19 @@ export default function TicketScannerHome() {
           </View>
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/history")}
-            className="w-9 h-9 rounded-full items-center justify-center"
-            style={{ backgroundColor: isDark ? "#2A2A2E" : "#E5E5E7" }}
+            style={styles.headerHistoryBtn}
+            activeOpacity={0.8}
           >
-            <Ionicons name="time-outline" size={20} color={iconColor} />
+            <Ionicons name="time-outline" size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
+      </ImageBackground>
 
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View
           className="px-4 pt-4 flex-1"
           style={{ backgroundColor: contentBg }}
@@ -1330,6 +1335,40 @@ export default function TicketScannerHome() {
 }
 
 const styles = StyleSheet.create({
+  headerBg: {
+    minHeight: 140,
+    width: "100%",
+    justifyContent: "flex-start",
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+  },
+  headerHistoryBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
   qrPlaceholder: {
     height: 220,
     borderRadius: 12,

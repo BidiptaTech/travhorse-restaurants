@@ -3,15 +3,16 @@ import { router } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React, { useCallback, useState } from "react";
 import {
-  Linking,
-  Modal,
-  Pressable,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ImageBackground,
+    Linking,
+    Modal,
+    Pressable,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -30,12 +31,6 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  {
-    id: "history",
-    icon: "time-outline",
-    label: "Scan History",
-    section: "general",
-  },
   {
     id: "share",
     icon: "share-social-outline",
@@ -70,6 +65,11 @@ const SECTIONS: { key: MenuItem["section"]; label: string }[] = [
   { key: "account", label: "Account" },
 ];
 
+// DMC list: show ~5 cards visible, then scroll with scrollbar for the rest
+const DMC_CARD_APPROX_HEIGHT = 100;
+const DMC_VISIBLE_CARDS = 5;
+const DMC_LIST_MAX_HEIGHT = DMC_CARD_APPROX_HEIGHT * DMC_VISIBLE_CARDS;
+
 export default function AccountsScreen() {
   const { colorScheme, setColorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -90,6 +90,7 @@ export default function AccountsScreen() {
   const modalBorder = isDark ? "#2A2B30" : "#e2e7eb";
   const rowBg = isDark ? "#1D1F24" : "#f8fafc";
   const primary = "#613BFF";
+  const destructiveRed = "#ef4444";
   const divider = isDark ? "#2A2B30" : "#e5e7eb";
 
   const setTheme = useCallback(
@@ -125,9 +126,6 @@ export default function AccountsScreen() {
 
   const onMenuItem = useCallback((id: string) => {
     switch (id) {
-      case "history":
-        router.push("/(tabs)/history" as any);
-        break;
       case "share":
         Share.share({
           message:
@@ -147,67 +145,109 @@ export default function AccountsScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }}>
-      {/* Header */}
-      <View
-        className="px-4 py-3 flex-row items-center"
-        style={{ backgroundColor: headerBg }}
+    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }} edges={["top"]}>
+      {/* Purple wave header with profile inside */}
+      <ImageBackground
+        source={require("@/assets/images/top-bg-shape2.png")}
+        style={s.headerBg}
+        resizeMode="stretch"
       >
-        <Text className="text-lg font-semibold" style={{ color: textPrimary }}>
-          Accounts
-        </Text>
-      </View>
+        {/* Top row: back chevron + title left-aligned */}
+        <View style={s.headerRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={26} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Account</Text>
+        </View>
+        {/* Avatar + name + email centered on purple */}
+        <TouchableOpacity
+          onPress={() => setDmcModalVisible(true)}
+          activeOpacity={0.8}
+          style={s.profileSection}
+        >
+          <View
+            style={[
+              s.avatarCircle,
+              { backgroundColor: isDark ? "#3a3a5c" : "#b0d4f1" },
+            ]}
+          >
+            <Ionicons
+              name="person"
+              size={52}
+              color={isDark ? "#c0c0c0" : "#ffffff"}
+            />
+          </View>
+          <Text style={s.profileName} numberOfLines={1}>
+            {user?.name || "Restaurant"}
+          </Text>
+          <Text style={s.profileEmail} numberOfLines={1}>
+            {user?.email || "—"}
+          </Text>
+        </TouchableOpacity>
+      </ImageBackground>
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile card */}
+        {/* DMC count */}
         <TouchableOpacity
           onPress={() => setDmcModalVisible(true)}
           activeOpacity={0.7}
-          className="mx-4 mt-4 flex-row items-center p-4"
           style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginHorizontal: 16,
+            marginTop: 16,
+            padding: 16,
             backgroundColor: cardBg,
             borderRadius: 16,
           }}
         >
           <View
-            className="w-14 h-14 rounded-full items-center justify-center mr-4"
-            style={{ backgroundColor: isDark ? "#2A2B30" : "#e5e7eb" }}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: isDark ? "#2A2B30" : "#e5e7eb",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 12,
+            }}
           >
             <Ionicons
-              name="person"
-              size={28}
-              color={isDark ? "#ffffff" : "#6b7280"}
+              name="people-outline"
+              size={22}
+              color={isDark ? "#ffffff" : "#374151"}
             />
           </View>
-          <View className="flex-1">
+          <View style={{ flex: 1 }}>
             <Text
-              className="text-base font-bold"
-              style={{ color: textPrimary }}
-              numberOfLines={1}
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: textPrimary,
+              }}
             >
-              {user?.name || "Restaurant"}
+              DMC Accounts
             </Text>
             <Text
-              className="text-sm mt-0.5"
-              style={{ color: textSecondary }}
-              numberOfLines={1}
+              style={{
+                fontSize: 12,
+                color: textSecondary,
+                marginTop: 2,
+              }}
             >
-              {user?.email || "—"}
+              {user?.dmcUsers?.length ?? 0} DMC
+              {(user?.dmcUsers?.length ?? 0) !== 1 ? "s" : ""} linked
             </Text>
-            <View className="flex-row items-center mt-1">
-              <Text
-                className="text-xs"
-                style={{ color: primary }}
-              >
-                View DMC accounts
-              </Text>
-            </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={textSecondary} />
+          <Ionicons name="chevron-forward" size={18} color={textSecondary} />
         </TouchableOpacity>
 
         {/* Menu sections */}
@@ -229,47 +269,59 @@ export default function AccountsScreen() {
                   overflow: "hidden",
                 }}
               >
-                {items.map((item, idx) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => onMenuItem(item.id)}
-                    activeOpacity={0.7}
-                    className="flex-row items-center px-4"
-                    style={{
-                      minHeight: 52,
-                      borderBottomWidth: idx < items.length - 1 ? 1 : 0,
-                      borderBottomColor: divider,
-                    }}
-                  >
-                    <View
-                      className="w-9 h-9 rounded-xl items-center justify-center mr-3"
-                      style={{
-                        backgroundColor: item.color
-                          ? `${item.color}18`
-                          : isDark
-                            ? "#2A2B30"
-                            : "#e5e7eb",
-                      }}
+                {items.map((item, idx) => {
+                  const isDestructive = Boolean(item.color);
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => onMenuItem(item.id)}
+                      activeOpacity={0.7}
+                      style={[
+                        s.menuRow,
+                        {
+                          borderBottomWidth: idx < items.length - 1 ? 1 : 0,
+                          borderBottomColor: divider,
+                        },
+                      ]}
                     >
+                      <View
+                        style={[
+                          s.menuRowIconWrap,
+                          {
+                            backgroundColor: isDestructive
+                              ? (isDark ? "rgba(239, 68, 68, 0.2)" : "rgba(239, 68, 68, 0.12)")
+                              : isDark
+                                ? "#2A2B30"
+                                : "#e5e7eb",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={item.icon}
+                          size={22}
+                          color={isDestructive ? destructiveRed : (isDark ? "#ffffff" : "#374151")}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          s.menuRowLabel,
+                          {
+                            color: isDestructive ? destructiveRed : textPrimary,
+                            fontWeight: isDestructive ? "600" : "500",
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.label}
+                      </Text>
                       <Ionicons
-                        name={item.icon}
+                        name="chevron-forward"
                         size={20}
-                        color={item.color || (isDark ? "#ffffff" : "#374151")}
+                        color={isDestructive ? destructiveRed : textSecondary}
                       />
-                    </View>
-                    <Text
-                      className="flex-1 text-sm font-medium"
-                      style={{ color: item.color || textPrimary }}
-                    >
-                      {item.label}
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={item.color || textSecondary}
-                    />
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           );
@@ -290,72 +342,99 @@ export default function AccountsScreen() {
           />
           <View
             style={[
-              styles.modalCard,
+              s.dmcModalCard,
               { backgroundColor: modalBg, borderColor: modalBorder },
             ]}
           >
+            {/* Header */}
             <View
-              className="px-4 pt-5 pb-3 flex-row items-center justify-between"
-              style={{
-                borderBottomWidth: 1,
-                borderBottomColor: divider,
-              }}
+              style={[
+                s.dmcModalHeader,
+                { borderBottomColor: divider },
+              ]}
             >
-              <Text
-                className="text-lg font-bold"
-                style={{ color: textPrimary }}
-              >
-                DMC Accounts
-              </Text>
+              <View>
+                <Text style={[s.dmcModalTitle, { color: textPrimary }]}>
+                  DMC Accounts
+                </Text>
+                <Text style={[s.dmcModalSubtitle, { color: textSecondary }]}>
+                  {user?.dmcUsers?.length
+                    ? `${user.dmcUsers.length} linked account${user.dmcUsers.length !== 1 ? "s" : ""}`
+                    : "No accounts linked"}
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setDmcModalVisible(false)}
-                className="w-9 h-9 rounded-full items-center justify-center"
-                style={{ backgroundColor: isDark ? "#2A2B30" : "#e5e7eb" }}
+                style={[s.dmcModalCloseBtn, { backgroundColor: rowBg }]}
+                activeOpacity={0.8}
               >
-                <Ionicons name="close" size={20} color={textSecondary} />
+                <Ionicons name="close" size={22} color={textSecondary} />
               </TouchableOpacity>
             </View>
+
+            {/* List – fixed max height so many DMCs scroll with scrollbar */}
             <ScrollView
-              style={{ maxHeight: 360 }}
-              contentContainerStyle={{ padding: 16 }}
-              showsVerticalScrollIndicator={false}
+              style={[s.dmcModalScroll, { maxHeight: DMC_LIST_MAX_HEIGHT }]}
+              contentContainerStyle={s.dmcModalScrollContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
             >
               {user?.dmcUsers?.length ? (
                 user.dmcUsers.map((dmcUser, index) => (
                   <View
                     key={dmcUser.id}
-                    className="mb-3 p-4 rounded-xl"
-                    style={{ backgroundColor: rowBg }}
+                    style={[s.dmcCard, { backgroundColor: rowBg }]}
                   >
-                    <Text
-                      className="text-xs font-semibold mb-2"
-                      style={{ color: "#F4C430" }}
-                    >
-                      {index + 1}. {dmcUser.dmc}
-                    </Text>
-                    <View className="flex-row items-center">
+                    <View style={s.dmcCardHeader}>
                       <View
-                        className="w-9 h-9 rounded-full items-center justify-center mr-3"
-                        style={{
-                          backgroundColor: isDark ? "#2A2B30" : "#e5e7eb",
-                        }}
+                        style={[
+                          s.dmcCardNumber,
+                          {
+                            backgroundColor: isDark
+                              ? "rgba(244, 196, 48, 0.2)"
+                              : "rgba(244, 196, 48, 0.25)",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={s.dmcCardNumberText}
+                          numberOfLines={1}
+                        >
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[s.dmcCardCompany, { color: textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {dmcUser.dmc}
+                      </Text>
+                    </View>
+                    <View style={s.dmcCardUser}>
+                      <View
+                        style={[
+                          s.dmcCardAvatar,
+                          {
+                            backgroundColor: isDark ? "#2A2B30" : "#e5e7eb",
+                          },
+                        ]}
                       >
                         <Ionicons
                           name="person"
-                          size={16}
+                          size={20}
                           color={textPrimary}
                         />
                       </View>
-                      <View>
+                      <View style={s.dmcCardUserInfo}>
                         <Text
-                          className="text-sm font-medium"
-                          style={{ color: textPrimary }}
+                          style={[s.dmcCardUserName, { color: textPrimary }]}
+                          numberOfLines={1}
                         >
                           {dmcUser.name}
                         </Text>
                         <Text
-                          className="text-xs"
-                          style={{ color: textSecondary }}
+                          style={[s.dmcCardUserEmail, { color: textSecondary }]}
+                          numberOfLines={1}
                         >
                           {dmcUser.email}
                         </Text>
@@ -364,21 +443,43 @@ export default function AccountsScreen() {
                   </View>
                 ))
               ) : (
-                <View className="items-center py-8">
-                  <Ionicons
-                    name="people-outline"
-                    size={32}
-                    color={textSecondary}
-                  />
-                  <Text
-                    className="text-sm mt-2"
-                    style={{ color: textSecondary }}
+                <View style={s.dmcEmptyState}>
+                  <View
+                    style={[
+                      s.dmcEmptyIconWrap,
+                      { backgroundColor: rowBg },
+                    ]}
                   >
-                    No DMC accounts available
+                    <Ionicons
+                      name="people-outline"
+                      size={40}
+                      color={textSecondary}
+                    />
+                  </View>
+                  <Text
+                    style={[s.dmcEmptyTitle, { color: textPrimary }]}
+                  >
+                    No DMC accounts
+                  </Text>
+                  <Text
+                    style={[s.dmcEmptyMessage, { color: textSecondary }]}
+                  >
+                    Linked DMC accounts will appear here.
                   </Text>
                 </View>
               )}
             </ScrollView>
+
+            {/* Footer */}
+            <View style={[s.dmcModalFooter, { borderTopColor: divider }]}>
+              <TouchableOpacity
+                onPress={() => setDmcModalVisible(false)}
+                style={[s.dmcModalCloseButton, { backgroundColor: primary }]}
+                activeOpacity={0.8}
+              >
+                <Text style={s.dmcModalCloseButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -632,6 +733,203 @@ export default function AccountsScreen() {
     </SafeAreaView>
   );
 }
+
+const s = StyleSheet.create({
+  headerBg: {
+    minHeight: 260,
+    width: "100%",
+    justifyContent: "flex-start",
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  profileSection: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  avatarCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  menuRowIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  menuRowLabel: {
+    flex: 1,
+    fontSize: 16,
+  },
+  // DMC modal
+  dmcModalCard: {
+    width: "100%",
+    maxWidth: 400,
+    maxHeight: "85%",
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  dmcModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  dmcModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  dmcModalSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  dmcModalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dmcModalScroll: {
+    maxHeight: 380,
+  },
+  dmcModalScrollContent: {
+    padding: 16,
+    paddingBottom: 8,
+  },
+  dmcCard: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  dmcCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  dmcCardNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  dmcCardNumberText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#B45309",
+  },
+  dmcCardCompany: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  dmcCardUser: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dmcCardAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  dmcCardUserInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  dmcCardUserName: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  dmcCardUserEmail: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  dmcEmptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  dmcEmptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  dmcEmptyTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  dmcEmptyMessage: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  dmcModalFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+  },
+  dmcModalCloseButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dmcModalCloseButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+  },
+});
 
 const styles = StyleSheet.create({
   modalBackdrop: {

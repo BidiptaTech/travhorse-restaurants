@@ -11,6 +11,8 @@ import { router } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
+    ImageBackground,
     Modal,
     Pressable,
     RefreshControl,
@@ -102,26 +104,26 @@ export default function UpcomingScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }}>
-      <View
-        className="px-4 py-3 flex-row items-center"
-        style={{ backgroundColor: headerBg }}
+    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }} edges={["top"]}>
+      {/* Sticky header – purple wave, stays fixed when scrolling */}
+      <ImageBackground
+        source={require("@/assets/images/top-bg-shape2.png")}
+        style={styles.headerBg}
+        resizeMode="stretch"
       >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="w-9 h-9 rounded-full items-center justify-center mr-3"
-        >
-          <Ionicons
-            name="chevron-back"
-            size={22}
-            color={isDark ? "#ffffff" : "#111827"}
-          />
-        </TouchableOpacity>
-        <Text className="text-lg font-semibold" style={{ color: textPrimary }}>
-          Upcoming events
-        </Text>
-      </View>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={26} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Upcoming events</Text>
+        </View>
+      </ImageBackground>
 
+      {/* Sticky search + DMC filter */}
       <View className="px-4 pt-3 pb-2" style={{ backgroundColor: bg }}>
         <View
           className="flex-row items-center rounded-xl px-3 py-2.5"
@@ -314,7 +316,7 @@ export default function UpcomingScreen() {
 
       <ScrollView
         className="flex-1 px-4 pt-2"
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -335,6 +337,16 @@ export default function UpcomingScreen() {
               style={{ color: textSecondary }}
             >
               {error}
+            </Text>
+          </View>
+        ) : (loading || refreshing) && filteredOrders.length === 0 ? (
+          <View className="items-center justify-center mt-16">
+            <ActivityIndicator size="large" color={textSecondary} />
+            <Text
+              className="text-sm mt-3 text-center"
+              style={{ color: textSecondary }}
+            >
+              Searching…
             </Text>
           </View>
         ) : (
@@ -638,6 +650,24 @@ function OrderDetailRows({
 }
 
 const styles = StyleSheet.create({
+  headerBg: {
+    minHeight: 120,
+    width: "100%",
+    justifyContent: "flex-start",
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#ffffff",
+    marginLeft: 8,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",

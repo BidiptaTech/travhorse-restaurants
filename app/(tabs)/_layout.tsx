@@ -93,11 +93,7 @@ function CustomTabBar({ state, navigation }: any) {
               >
                 {/* White circle protruding above the bar */}
                 <View style={styles.activeCircle}>
-                  <Ionicons
-                    name={tab.activeIcon}
-                    size={26}
-                    color={PRIMARY}
-                  />
+                  <Ionicons name={tab.activeIcon} size={26} color={PRIMARY} />
                 </View>
                 <Text style={styles.activeLabel} numberOfLines={1}>
                   {tab.label}

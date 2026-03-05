@@ -165,7 +165,7 @@ export default function HistoryScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }}>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }} edges={["top"]}>
       <View
         className="px-4 py-3 flex-row items-center justify-between"
         style={{ backgroundColor: headerBg }}
@@ -553,7 +553,7 @@ export default function HistoryScreen() {
 
       <ScrollView
         className="flex-1 px-4 pt-4"
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
         {filteredGroupedScans.length === 0 ? (
