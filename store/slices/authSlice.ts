@@ -18,6 +18,10 @@ export interface User {
   id: string;
   email: string;
   name?: string;
+  guest_name?: string;
+  guest_id?: string;
+  image?: string;
+  token?: string;
   dmcUsers?: DmcUser[]; // ✅ add this
 }
 

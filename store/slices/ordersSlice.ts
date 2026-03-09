@@ -1,8 +1,8 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { apiUrl } from "@/constants/api";
 import type { RootState } from "@/store";
 import { signOut } from "@/store/slices/authSlice";
 import { clearAuth, loadAuth } from "@/utils/authStorage";
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 /** GET restaurant orders (ongoing + upcoming; past ignored). */
 export const RESTAURANT_ORDERS_ENDPOINT = apiUrl("restaurant-orders");
@@ -89,54 +89,67 @@ export const fetchRestaurantOrders = createAsyncThunk<
   { type: OrdersType; orders: RestaurantOrder[] },
   OrdersType,
   { state: RootState }
->("orders/fetchRestaurantOrders", async (type, { dispatch, rejectWithValue }) => {
-  const auth = await loadAuth();
-  const token = auth?.token ?? null;
-  if (!token) {
-    return rejectWithValue("Not authenticated");
-  }
+>(
+  "orders/fetchRestaurantOrders",
+  async (type, { dispatch, rejectWithValue }) => {
+    const auth = await loadAuth();
+    const token = auth?.token ?? null;
+    if (!token) {
+      return rejectWithValue("Not authenticated");
+    }
 
-  const res = await fetch(RESTAURANT_ORDERS_ENDPOINT, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      Type: type,
-    },
-  });
+    const res = await fetch(RESTAURANT_ORDERS_ENDPOINT, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Type: type,
+      },
+    });
 
-  const json = await res.json().catch(() => ({}));
-  console.log("[orders] API response", { type, status: res.status, data: json });
+    const json = await res.json().catch(() => ({}));
+    console.log("[orders] API response", {
+      type,
+      status: res.status,
+      data: json,
+    });
 
-  // Token expired, invalid, or server error (500) – clear auth and force navigate to login
-  if (res.status === 401 || res.status === 403 || res.status === 500) {
-    dispatch(signOut());
-    await clearAuth().catch(() => {});
-    return rejectWithValue(
-      res.status === 500
-        ? "Server error. Please sign in again."
-        : "Session expired. Please sign in again."
+    // Token expired, invalid, or server error (500) – clear auth and force navigate to login
+    if (res.status === 401 || res.status === 403 || res.status === 500) {
+      dispatch(signOut());
+      await clearAuth().catch(() => {});
+      return rejectWithValue(
+        res.status === 500
+          ? "Server error. Please sign in again."
+          : "Session expired. Please sign in again.",
+      );
+    }
+
+    if (!res.ok) {
+      return rejectWithValue(
+        json?.message ?? json?.error ?? `Request failed (${res.status})`,
+      );
+    }
+
+    // API can return { data: { data: [...] } } or { data: [...] } or { data: { data: [...], message, success } }
+    const wrapper = json?.data ?? json;
+    const dataArray = Array.isArray(wrapper?.data)
+      ? wrapper.data
+      : Array.isArray(wrapper)
+        ? wrapper
+        : [];
+    const orders = (dataArray as RawRestaurantOrder[]).map((o) =>
+      normalizeOrder(o),
     );
-  }
+    console.log("[orders] parsed", {
+      type,
+      count: orders.length,
+      firstId: orders[0]?.bookingId,
+    });
 
-  if (!res.ok) {
-    return rejectWithValue(
-      json?.message ?? json?.error ?? `Request failed (${res.status})`
-    );
-  }
-
-  // API can return { data: { data: [...] } } or { data: [...] } or { data: { data: [...], message, success } }
-  const wrapper = json?.data ?? json;
-  const dataArray = Array.isArray(wrapper?.data)
-    ? wrapper.data
-    : Array.isArray(wrapper)
-      ? wrapper
-      : [];
-  const orders = (dataArray as RawRestaurantOrder[]).map((o) => normalizeOrder(o));
-  console.log("[orders] parsed", { type, count: orders.length, firstId: orders[0]?.bookingId });
-
-  return { type, orders };
-});
+    return { type, orders };
+  },
+);
 
 export interface OrdersState {
   ongoing: RestaurantOrder[];
@@ -178,7 +191,8 @@ const ordersSlice = createSlice({
       })
       .addCase(fetchRestaurantOrders.rejected, (state, action) => {
         state.loading = false;
-        state.error = (action.payload as string | undefined) ?? "Failed to load orders";
+        state.error =
+          (action.payload as string | undefined) ?? "Failed to load orders";
       });
   },
 });

@@ -1,17 +1,17 @@
-import React from "react";
 import { Stack } from "expo-router";
-import "react-native-reanimated";
-import "../global.css";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useColorScheme } from "nativewind";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
+import "../global.css";
 import { store } from "../store";
-import { getStoredTheme } from "../utils/themeStorage";
-import { loadAuth } from "../utils/authStorage";
 import { setCredentials } from "../store/slices/authSlice";
+import { loadAuth } from "../utils/authStorage";
+import { getStoredTheme } from "../utils/themeStorage";
 
 export default function RootLayout() {
   const { colorScheme, setColorScheme } = useColorScheme();
@@ -64,7 +64,10 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth-pages)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="(auth-pages)"
+              options={{ headerShown: false }}
+            />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="(screens)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: "modal" }} />

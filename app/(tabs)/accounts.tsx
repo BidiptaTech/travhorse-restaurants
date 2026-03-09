@@ -1,97 +1,62 @@
+import PageTitle from "@/components/ui/PageTitle";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React, { useCallback, useState } from "react";
 import {
-    ImageBackground,
-    Linking,
-    Modal,
-    Pressable,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { useDispatch } from "react-redux";
+import { PhCaretRight } from "../../assets/icons/CaretRight";
+import { PhSignOut } from "../../assets/icons/SignOut";
+import { PhEye } from "../../assets/icons/eye";
+import logoutModalBgDark from "../../assets/images/logout-modal-bg-dark.png";
+import logoutModalBg from "../../assets/images/logout-modal-bg-white.png";
+import topBgBackground2 from "../../assets/images/top-bg-shape2.png";
+import { AppDispatch } from "../../store";
+import { useAppSelector } from "../../store/hooks";
+import { deleteAccount } from "../../store/slices/accountSlice";
 import { AUTH_LOGOUT_ENDPOINT, signOut } from "../../store/slices/authSlice";
 import { clearAuth, loadAuth } from "../../utils/authStorage";
 import { setStoredTheme } from "../../utils/themeStorage";
 
-type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
-
-interface MenuItem {
-  id: string;
-  icon: IoniconsName;
-  label: string;
-  color?: string;
-  section: "general" | "preferences" | "account";
-}
-
-const MENU_ITEMS: MenuItem[] = [
-  {
-    id: "share",
-    icon: "share-social-outline",
-    label: "Share App",
-    section: "general",
-  },
-  {
-    id: "appearance",
-    icon: "contrast-outline",
-    label: "Appearance",
-    section: "preferences",
-  },
-  {
-    id: "delete-account",
-    icon: "trash-outline",
-    label: "Delete Account",
-    color: "#ef4444",
-    section: "account",
-  },
-  {
-    id: "sign-out",
-    icon: "log-out-outline",
-    label: "Sign Out",
-    color: "#ef4444",
-    section: "account",
-  },
-];
-
-const SECTIONS: { key: MenuItem["section"]; label: string }[] = [
-  { key: "general", label: "General" },
-  { key: "preferences", label: "Preferences" },
-  { key: "account", label: "Account" },
-];
-
-// DMC list: show ~5 cards visible, then scroll with scrollbar for the rest
-const DMC_CARD_APPROX_HEIGHT = 100;
-const DMC_VISIBLE_CARDS = 5;
-const DMC_LIST_MAX_HEIGHT = DMC_CARD_APPROX_HEIGHT * DMC_VISIBLE_CARDS;
-
-export default function AccountsScreen() {
+const Account = () => {
   const { colorScheme, setColorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const dispatch = useAppDispatch();
-  const { user } = useAppSelector((s) => s.auth);
-
+  const [logoutModal, setLogoutModal] = useState(false);
+  const [deleteAccountModal, setDeleteAccountModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordError, setDeletePasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
-  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
-  const [signOutVisible, setSignOutVisible] = useState(false);
   const [dmcModalVisible, setDmcModalVisible] = useState(false);
 
-  const bg = isDark ? "#000000" : "#ffffff";
-  const headerBg = isDark ? "#18191C" : "#f8fafc";
-  const cardBg = isDark ? "#15161B" : "#f1f5f9";
+  const dispatch = useDispatch<AppDispatch>();
+  const user = useAppSelector((state) => state.auth.user);
+  const token = useAppSelector((state) => state.auth.token);
+
+  const isDark = colorScheme === "dark";
   const textPrimary = isDark ? "#ffffff" : "#111827";
   const textSecondary = isDark ? "#9ca3af" : "#6b7280";
   const modalBg = isDark ? "#18191C" : "#ffffff";
   const modalBorder = isDark ? "#2A2B30" : "#e2e7eb";
-  const rowBg = isDark ? "#1D1F24" : "#f8fafc";
   const primary = "#613BFF";
-  const destructiveRed = "#ef4444";
   const divider = isDark ? "#2A2B30" : "#e5e7eb";
+
+  const toggleColorScheme = () => {
+    setThemeModalVisible(true);
+  };
 
   const setTheme = useCallback(
     (theme: "light" | "dark") => {
@@ -102,389 +67,562 @@ export default function AccountsScreen() {
     [setColorScheme],
   );
 
+  const handleShareApp = useCallback(() => {
+    Share.share({
+      message:
+        "Check out this restaurant ticket checker app I'm using to scan and validate tickets.",
+    }).catch(() => {});
+  }, []);
+
   const onConfirmSignOut = useCallback(async () => {
-    setSignOutVisible(false);
+    setLogoutModal(false);
+    setLogoutLoading(true);
+
     const auth = await loadAuth();
-    const token = auth?.token ?? null;
-    if (token) {
+    const authToken = auth?.token ?? token;
+
+    if (authToken) {
       try {
         await fetch(AUTH_LOGOUT_ENDPOINT, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
         });
-      } catch {
+      } catch (error) {
+        console.warn("Logout API call failed:", error);
         // Still sign out locally
       }
     }
+
     dispatch(signOut());
     clearAuth().catch(() => {});
+    setLogoutLoading(false);
     router.replace("/(auth-pages)/SignIn");
-  }, [dispatch]);
+  }, [dispatch, token]);
 
-  const onMenuItem = useCallback((id: string) => {
-    switch (id) {
-      case "share":
-        Share.share({
-          message:
-            "Check out this restaurant ticket checker app I'm using to scan and validate tickets.",
-        }).catch(() => {});
-        break;
-      case "appearance":
-        setThemeModalVisible(true);
-        break;
-      case "delete-account":
-        setDeleteAccountVisible(true);
-        break;
-      case "sign-out":
-        setSignOutVisible(true);
-        break;
+  const handleLogout = async () => {
+    onConfirmSignOut();
+  };
+
+  const handleDeleteAccount = async () => {
+    // Validate password
+    if (!deletePassword.trim()) {
+      setDeletePasswordError("Please enter your password");
+      return;
     }
-  }, []);
 
+    // Clear password error
+    setDeletePasswordError("");
+    setDeleteLoading(true);
+
+    console.log("=== DELETE ACCOUNT DEBUG ===");
+    console.log("User object:", user);
+    console.log("User email:", user?.email);
+    console.log("User guest_id:", user?.guest_id);
+    console.log("User token exists:", !!token);
+    console.log(
+      "User token (first 20 chars):",
+      token ? token.substring(0, 20) + "..." : "NO TOKEN",
+    );
+
+    try {
+      const result = await dispatch(
+        deleteAccount({
+          password: deletePassword,
+          email: user?.email || "",
+          guest_id: user?.guest_id || "",
+        }),
+      );
+
+      console.log("Delete account result:", result);
+
+      if (deleteAccount.fulfilled.match(result)) {
+        // Account deleted successfully
+        console.log("Account deleted successfully!");
+        setDeleteLoading(false);
+        setDeleteAccountModal(false);
+        setDeletePassword("");
+        setDeletePasswordError("");
+        // Use router.replace to prevent back navigation
+        router.replace("/(auth-pages)/SignIn");
+      } else if (deleteAccount.rejected.match(result)) {
+        console.error("Delete account rejected:", result.payload);
+        setDeleteLoading(false);
+      }
+    } catch (error) {
+      console.error("Delete account error:", error);
+      setDeleteLoading(false);
+    }
+  };
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }} edges={["top"]}>
-      {/* Purple wave header with profile inside */}
-      <ImageBackground
-        source={require("@/assets/images/top-bg-shape2.png")}
-        style={s.headerBg}
-        resizeMode="stretch"
-      >
-        {/* Top row: back chevron + title left-aligned */}
-        <View style={s.headerRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="chevron-back" size={26} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Account</Text>
-        </View>
-        {/* Avatar + name + email centered on purple */}
-        <TouchableOpacity
-          onPress={() => setDmcModalVisible(true)}
-          activeOpacity={0.8}
-          style={s.profileSection}
-        >
-          <View
-            style={[
-              s.avatarCircle,
-              { backgroundColor: isDark ? "#3a3a5c" : "#b0d4f1" },
-            ]}
-          >
-            <Ionicons
-              name="person"
-              size={52}
-              color={isDark ? "#c0c0c0" : "#ffffff"}
-            />
+    <View className="bg-b50 min-h-full dark:bg-n50 dark:text-white">
+      <ScrollView className="">
+        <View className="">
+          <View className=" absolute top-0 left-0 right-0   ">
+            <Image source={topBgBackground2} className="w-full h-[209px]  " />
           </View>
-          <Text style={s.profileName} numberOfLines={1}>
-            {user?.name || "Restaurant"}
-          </Text>
-          <Text style={s.profileEmail} numberOfLines={1}>
-            {user?.email || "—"}
-          </Text>
-        </TouchableOpacity>
-      </ImageBackground>
+          <PageTitle pageName="Account" hideBackBautton={true} />
+        </View>
+        <View className="flex items-center justify-center flex-col gap-y-2 pt-4">
+          <View className="relative">
+            {user?.image ? (
+              <Image
+                source={{ uri: user.image }}
+                alt=""
+                className="w-[140px] h-[140px] rounded-full object-cover"
+              />
+            ) : (
+              <View className="w-[140px] h-[140px] rounded-full bg-gray-200 dark:bg-n100 items-center justify-center">
+                <Ionicons name="person" size={70} color="#a6a6a6" />
+              </View>
+            )}
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* DMC count */}
-        <TouchableOpacity
-          onPress={() => setDmcModalVisible(true)}
-          activeOpacity={0.7}
+            {/* <View className="absolute -right-2 bottom-5 flex h-8 w-8 items-center justify-center rounded-full bg-white">
+              <View className="flex w-7 h-7 items-center justify-center rounded-full bg-p1">
+                <SolarPenNewSquareOutline />
+              </View>
+            </View> */}
+          </View>
+          <View className="text-center">
+            <Text className="text-2xl font-semibold dark:text-white">
+              {user?.guest_name || user?.name || "Guest User"}
+            </Text>
+            <Text className="font-semibold text-n400 dark:text-n500">
+              {user?.email || "No email available"}
+            </Text>
+          </View>
+        </View>
+        <View className="flex flex-col gap-y-2 pt-7 px-6">
+          {/* <Pressable
+            onPress={() => router.push("/PassengerList" as any)}
+            className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+          >
+            <View className="flex-row items-center justify-start gap-2">
+              <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                <PhUsersThree color="#613bff" size="16px" />
+              </View>
+              <Text className="font-semibold dark:text-white">
+                Passengers List
+              </Text>
+            </View>
+            <PhCaretRight size="20px" color="#a6a6a6" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/DiscountVouchers" as any)}
+            className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+          >
+            <View className="flex-row items-center justify-start gap-2">
+              <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                <PhTag color="#613bff" size="16px" />
+              </View>
+              <Text className="font-semibold dark:text-white">
+                Discounts / Vouchers
+              </Text>
+            </View>
+            <PhCaretRight size="20px" color="#a6a6a6" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/AirbookPoints" as any)}
+            className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+          >
+            <View className="flex-row items-center justify-start gap-2">
+              <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                <PhCoins color="#613bff" size="16px" />
+              </View>
+              <Text className="font-semibold dark:text-white">
+                AirBook Points
+              </Text>
+            </View>
+            <PhCaretRight size="20px" color="#a6a6a6" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/PaymentMethod" as any)}
+            className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+          >
+            <View className="flex-row items-center justify-start gap-2">
+              <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                <PhWalletLight color="#613bff" size="16px" type="light" />
+              </View>
+              <Text className="font-semibold dark:text-white">
+                Payment Methods
+              </Text>
+            </View>
+            <PhCaretRight size="20px" color="#a6a6a6" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/SavedAddress" as any)}
+            className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+          >
+            <View className="flex-row items-center justify-start gap-2">
+              <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                <PhMapPin color="#613bff" size="16px" />
+              </View>
+              <Text className="font-semibold dark:text-white">
+                Saved Address
+              </Text>
+            </View>
+            <PhCaretRight size="20px" color="#a6a6a6" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/LinkedAccounts" as any)}
+            className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+          >
+            <View className="flex-row items-center justify-start gap-2">
+              <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                <PhArrowsDownUp color="#613bff" size="16px" />
+              </View>
+              <Text className="font-semibold dark:text-white">
+                Linked Accounts
+              </Text>
+            </View>
+            <PhCaretRight size="20px" color="#a6a6a6" />
+          </Pressable> */}
+        </View>
+        <View className="pt-7 px-6">
+          <Text className="text-xl font-semibold pb-2 dark:text-white">
+            General
+          </Text>
+          <View className="flex flex-col gap-y-2 ">
+            {/* Share App */}
+            <Pressable
+              onPress={handleShareApp}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <Ionicons
+                    name="share-social-outline"
+                    size={16}
+                    color="#613bff"
+                  />
+                </View>
+                <Text className="font-semibold dark:text-white">Share App</Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable>
+
+            {/* DMC Accounts (if available) */}
+            {user?.dmcUsers && user.dmcUsers.length > 0 && (
+              <Pressable
+                onPress={() => setDmcModalVisible(true)}
+                className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+              >
+                <View className="flex-row items-center justify-start gap-2">
+                  <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                    <Ionicons name="people-outline" size={16} color="#613bff" />
+                  </View>
+                  <View>
+                    <Text className="font-semibold dark:text-white">
+                      DMC Accounts
+                    </Text>
+                    <Text className="text-xs text-n400 dark:text-n500">
+                      {user.dmcUsers.length} linked account
+                      {user.dmcUsers.length !== 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                </View>
+                <PhCaretRight size="20px" color="#a6a6a6" />
+              </Pressable>
+            )}
+
+            {/* <Pressable
+              onPress={() => router.push("/YourProfile" as any)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhUserLight type="light" color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">
+                  Personal Info
+                </Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable> */}
+            {/* <Pressable
+              onPress={() => router.push("/NotificationSettings" as any)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhBell color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">
+                  Notification
+                </Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable> */}
+
+            {/* <Pressable
+              onPress={() => router.push("/SecuritySettings" as any)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhShieldCheck color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">Security</Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/LanguageSettings" as any)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhTranslate color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">Language</Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable> */}
+            <Pressable
+              onPress={toggleColorScheme}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhEye color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">
+                  Appearance
+                </Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable>
+          </View>
+        </View>
+        <View className="pt-7 px-6 pb-16">
+          <Text className="text-xl font-semibold pb-2">About</Text>
+          <View className="flex flex-col gap-y-2 ">
+            {/* <Pressable
+              onPress={() => router.push("/HelpCenter" as any)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhHeadset color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">
+                  Help Centre
+                </Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/AboutAirbook" as any)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhInfo color="#613bff" size="16px" />
+                </View>
+                <Text className="font-semibold dark:text-white">
+                  About Airbook
+                </Text>
+              </View>
+              <PhCaretRight size="20px" color="#a6a6a6" />
+            </Pressable> */}
+            <Pressable
+              onPress={() => setDeleteAccountModal(true)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0 border border-red-100 dark:border-red-900/30"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className="flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 p-2">
+                  <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                </View>
+                <Text className="font-bold text-red-600 dark:text-red-500">
+                  Delete Account
+                </Text>
+              </View>
+              <View className="bg-red-50 dark:bg-red-900/20 rounded-full px-2 py-1">
+                <Text className="text-xs text-red-600 dark:text-red-500 font-semibold">
+                  ⚠️
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => setLogoutModal(true)}
+              className="flex-row items-center justify-between rounded-full bg-white p-3 dark:bg-n0"
+            >
+              <View className="flex-row items-center justify-start gap-2">
+                <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
+                  <PhSignOut color="#613bff" size="16px" />
+                </View>
+                <Text className="font-bold text-red-600 dark:text-red-500">
+                  Logout
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+      <Modal visible={logoutModal} transparent={true}>
+        <View
+          className="h-full justify-end items-center"
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginHorizontal: 16,
-            marginTop: 16,
-            padding: 16,
-            backgroundColor: cardBg,
-            borderRadius: 16,
+            backgroundColor:
+              colorScheme === "dark"
+                ? "rgba(255, 255, 255, .1)"
+                : "rgba(9, 9, 9, .8)",
           }}
         >
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              backgroundColor: isDark ? "#2A2B30" : "#e5e7eb",
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 12,
-            }}
-          >
-            <Ionicons
-              name="people-outline"
-              size={22}
-              color={isDark ? "#ffffff" : "#374151"}
+          <View className="absolute bottom-0 left-0 right-0 ">
+            <Image source={logoutModalBg} className="w-full dark:hidden" />
+            <Image
+              source={logoutModalBgDark}
+              className="w-full hidden dark:flex"
             />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: textPrimary,
-              }}
-            >
-              DMC Accounts
-            </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: textSecondary,
-                marginTop: 2,
-              }}
-            >
-              {user?.dmcUsers?.length ?? 0} DMC
-              {(user?.dmcUsers?.length ?? 0) !== 1 ? "s" : ""} linked
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={textSecondary} />
-        </TouchableOpacity>
-
-        {/* Menu sections */}
-        {SECTIONS.map((section) => {
-          const items = MENU_ITEMS.filter((m) => m.section === section.key);
-          if (items.length === 0) return null;
-          return (
-            <View key={section.key} className="mt-6 mx-4">
-              <Text
-                className="text-xs font-semibold uppercase tracking-wide mb-2 px-1"
-                style={{ color: textSecondary }}
-              >
-                {section.label}
-              </Text>
-              <View
-                style={{
-                  backgroundColor: cardBg,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                }}
-              >
-                {items.map((item, idx) => {
-                  const isDestructive = Boolean(item.color);
-                  return (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => onMenuItem(item.id)}
-                      activeOpacity={0.7}
-                      style={[
-                        s.menuRow,
-                        {
-                          borderBottomWidth: idx < items.length - 1 ? 1 : 0,
-                          borderBottomColor: divider,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          s.menuRowIconWrap,
-                          {
-                            backgroundColor: isDestructive
-                              ? (isDark ? "rgba(239, 68, 68, 0.2)" : "rgba(239, 68, 68, 0.12)")
-                              : isDark
-                                ? "#2A2B30"
-                                : "#e5e7eb",
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name={item.icon}
-                          size={22}
-                          color={isDestructive ? destructiveRed : (isDark ? "#ffffff" : "#374151")}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          s.menuRowLabel,
-                          {
-                            color: isDestructive ? destructiveRed : textPrimary,
-                            fontWeight: isDestructive ? "600" : "500",
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {item.label}
-                      </Text>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={isDestructive ? destructiveRed : textSecondary}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
+          <View className="relative w-full overflow-y-auto rounded-t-3xl">
+            <View className="px-6 pt-8">
+              <View className="flex flex-col items-center justify-center gap-y-3 pb-4">
+                <Text className=" text-center text-3xl font-bold dark:text-white">
+                  Logout
+                </Text>
+                <Text className="text-center0 text-n400 dark:text-n500">
+                  Are you sure you want to log out?
+                </Text>
               </View>
             </View>
-          );
-        })}
-      </ScrollView>
 
-      {/* DMC Accounts modal */}
+            <View className="flex-row items-center justify-between gap-2 rounded-t-2xl p-6 pb-16">
+              <Pressable
+                onPress={() => setLogoutModal(false)}
+                className="flex-1"
+                disabled={logoutLoading}
+              >
+                <Text
+                  className={`rounded-lg border border-p1 py-3 text-center font-semibold dark:text-white ${logoutLoading ? "opacity-50" : ""}`}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleLogout}
+                className="flex-1"
+                disabled={logoutLoading}
+              >
+                <View
+                  className={`rounded-lg bg-p1 py-3 flex-row items-center justify-center ${logoutLoading ? "opacity-80" : ""}`}
+                >
+                  {logoutLoading && (
+                    <ActivityIndicator
+                      color="#ffffff"
+                      size="small"
+                      style={{ marginRight: 8 }}
+                    />
+                  )}
+                  <Text className="text-center font-semibold text-white">
+                    {logoutLoading ? "Logging out..." : "Yes, Logout"}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete account modal - Email based approach */}
       <Modal
-        visible={dmcModalVisible}
+        visible={deleteAccountModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setDmcModalVisible(false)}
+        onRequestClose={() => setDeleteAccountModal(false)}
       >
         <View style={styles.modalBackdrop}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setDmcModalVisible(false)}
+            onPress={() => setDeleteAccountModal(false)}
           />
           <View
             style={[
-              s.dmcModalCard,
+              styles.modalCard,
               { backgroundColor: modalBg, borderColor: modalBorder },
             ]}
           >
-            {/* Header */}
-            <View
-              style={[
-                s.dmcModalHeader,
-                { borderBottomColor: divider },
-              ]}
-            >
-              <View>
-                <Text style={[s.dmcModalTitle, { color: textPrimary }]}>
-                  DMC Accounts
-                </Text>
-                <Text style={[s.dmcModalSubtitle, { color: textSecondary }]}>
-                  {user?.dmcUsers?.length
-                    ? `${user.dmcUsers.length} linked account${user.dmcUsers.length !== 1 ? "s" : ""}`
-                    : "No accounts linked"}
-                </Text>
+            <View className="items-center pt-4 pb-2 px-4">
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center mb-3"
+                style={{ backgroundColor: "rgba(248, 113, 113, 0.2)" }}
+              >
+                <Ionicons name="trash-outline" size={32} color="#ef4444" />
               </View>
+              <Text
+                className="text-lg font-bold mb-1 text-center"
+                style={{ color: textPrimary }}
+              >
+                Delete account
+              </Text>
+              <Text
+                className="text-sm text-center mb-4"
+                style={{ color: textSecondary }}
+              >
+                To delete your account, send an email to{" "}
+                <Text className="font-semibold" style={{ color: textPrimary }}>
+                  travcadmin@travclicks.com
+                </Text>
+                . Your account will be deleted within 72 hours.
+              </Text>
               <TouchableOpacity
-                onPress={() => setDmcModalVisible(false)}
-                style={[s.dmcModalCloseBtn, { backgroundColor: rowBg }]}
+                onPress={() => {
+                  const subject = encodeURIComponent(
+                    "Account Deletion Request - Travhorse Restaurants",
+                  );
+                  const body = encodeURIComponent(
+                    "Hello Travhorse Support Team,\n\n" +
+                      "I would like to request the permanent deletion of my restaurant account from the Travhorse Restaurants app.\n\n" +
+                      "Email: " +
+                      (user?.email ?? "") +
+                      "\n" +
+                      "Restaurant ID: " +
+                      (user?.id ?? "") +
+                      "\n" +
+                      "Restaurant Name: " +
+                      (user?.name ?? "") +
+                      "\n\n" +
+                      "Please confirm once the account has been deleted.\n\n" +
+                      "Thank you.",
+                  );
+                  Linking.openURL(
+                    `mailto:travcadmin@travclicks.com?subject=${subject}&body=${body}`,
+                  );
+                }}
+                className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
+                style={{ backgroundColor: primary }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="close" size={22} color={textSecondary} />
+                <Ionicons name="mail" size={20} color="#ffffff" />
+                <Text className="text-base font-semibold text-white ml-2">
+                  Send email
+                </Text>
               </TouchableOpacity>
             </View>
-
-            {/* List – fixed max height so many DMCs scroll with scrollbar */}
-            <ScrollView
-              style={[s.dmcModalScroll, { maxHeight: DMC_LIST_MAX_HEIGHT }]}
-              contentContainerStyle={s.dmcModalScrollContent}
-              showsVerticalScrollIndicator={true}
-              keyboardShouldPersistTaps="handled"
-            >
-              {user?.dmcUsers?.length ? (
-                user.dmcUsers.map((dmcUser, index) => (
-                  <View
-                    key={dmcUser.id}
-                    style={[s.dmcCard, { backgroundColor: rowBg }]}
-                  >
-                    <View style={s.dmcCardHeader}>
-                      <View
-                        style={[
-                          s.dmcCardNumber,
-                          {
-                            backgroundColor: isDark
-                              ? "rgba(244, 196, 48, 0.2)"
-                              : "rgba(244, 196, 48, 0.25)",
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={s.dmcCardNumberText}
-                          numberOfLines={1}
-                        >
-                          {index + 1}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[s.dmcCardCompany, { color: textPrimary }]}
-                        numberOfLines={2}
-                      >
-                        {dmcUser.dmc}
-                      </Text>
-                    </View>
-                    <View style={s.dmcCardUser}>
-                      <View
-                        style={[
-                          s.dmcCardAvatar,
-                          {
-                            backgroundColor: isDark ? "#2A2B30" : "#e5e7eb",
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name="person"
-                          size={20}
-                          color={textPrimary}
-                        />
-                      </View>
-                      <View style={s.dmcCardUserInfo}>
-                        <Text
-                          style={[s.dmcCardUserName, { color: textPrimary }]}
-                          numberOfLines={1}
-                        >
-                          {dmcUser.name}
-                        </Text>
-                        <Text
-                          style={[s.dmcCardUserEmail, { color: textSecondary }]}
-                          numberOfLines={1}
-                        >
-                          {dmcUser.email}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <View style={s.dmcEmptyState}>
-                  <View
-                    style={[
-                      s.dmcEmptyIconWrap,
-                      { backgroundColor: rowBg },
-                    ]}
-                  >
-                    <Ionicons
-                      name="people-outline"
-                      size={40}
-                      color={textSecondary}
-                    />
-                  </View>
-                  <Text
-                    style={[s.dmcEmptyTitle, { color: textPrimary }]}
-                  >
-                    No DMC accounts
-                  </Text>
-                  <Text
-                    style={[s.dmcEmptyMessage, { color: textSecondary }]}
-                  >
-                    Linked DMC accounts will appear here.
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={[s.dmcModalFooter, { borderTopColor: divider }]}>
+            <View className="px-4 pb-4">
               <TouchableOpacity
-                onPress={() => setDmcModalVisible(false)}
-                style={[s.dmcModalCloseButton, { backgroundColor: primary }]}
+                onPress={() => setDeleteAccountModal(false)}
+                className="rounded-xl py-3.5 items-center justify-center"
+                style={{ backgroundColor: isDark ? "#2A2B30" : "#e2e8f0" }}
                 activeOpacity={0.8}
               >
-                <Text style={s.dmcModalCloseButtonText}>Close</Text>
+                <Text
+                  className="text-base font-semibold"
+                  style={{ color: textPrimary }}
+                >
+                  Close
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Appearance modal */}
+      {/* Appearance/Theme modal */}
       <Modal
         visible={themeModalVisible}
         transparent
@@ -569,233 +707,191 @@ export default function AccountsScreen() {
         </View>
       </Modal>
 
-      {/* Delete account modal */}
+      {/* DMC Accounts modal */}
       <Modal
-        visible={deleteAccountVisible}
+        visible={dmcModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setDeleteAccountVisible(false)}
+        onRequestClose={() => setDmcModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setDeleteAccountVisible(false)}
+            onPress={() => setDmcModalVisible(false)}
           />
           <View
             style={[
-              styles.modalCard,
+              styles.dmcModalCard,
               { backgroundColor: modalBg, borderColor: modalBorder },
             ]}
           >
-            <View className="items-center pt-4 pb-2 px-4">
-              <View
-                className="w-14 h-14 rounded-full items-center justify-center mb-3"
-                style={{ backgroundColor: "rgba(248, 113, 113, 0.2)" }}
-              >
-                <Ionicons name="trash-outline" size={32} color="#ef4444" />
-              </View>
-              <Text
-                className="text-lg font-bold mb-1 text-center"
-                style={{ color: textPrimary }}
-              >
-                Delete account
-              </Text>
-              <Text
-                className="text-sm text-center mb-4"
-                style={{ color: textSecondary }}
-              >
-                To delete your account, send an email to{" "}
-                <Text className="font-semibold" style={{ color: textPrimary }}>
-                  travcadmin@travclicks.com
+            {/* Header */}
+            <View
+              style={[styles.dmcModalHeader, { borderBottomColor: divider }]}
+            >
+              <View>
+                <Text style={[styles.dmcModalTitle, { color: textPrimary }]}>
+                  DMC Accounts
                 </Text>
-                . Your account will be deleted within 72 hours.
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  const subject = encodeURIComponent(
-                    "Account Deletion Request - Travhorse Restaurants",
-                  );
-                  const body = encodeURIComponent(
-                    "Hello Travhorse Support Team,\n\n" +
-                      "I would like to request the permanent deletion of my restaurant account from the Travhorse Restaurants app.\n\n" +
-                      "Email: " +
-                      (user?.email ?? "") +
-                      "\n" +
-                      "Restaurant ID: " +
-                      (user?.id ?? "") +
-                      "\n" +
-                      "Restaurant Name: " +
-                      (user?.name ?? "") +
-                      "\n\n" +
-                      "Please confirm once the account has been deleted.\n\n" +
-                      "Thank you.",
-                  );
-                  Linking.openURL(
-                    `mailto:travcadmin@travclicks.com?subject=${subject}&body=${body}`,
-                  );
-                }}
-                className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
-                style={{ backgroundColor: primary }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="mail" size={20} color="#ffffff" />
-                <Text className="text-base font-semibold text-white ml-2">
-                  Send email
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View className="px-4 pb-4">
-              <TouchableOpacity
-                onPress={() => setDeleteAccountVisible(false)}
-                className="rounded-xl py-3.5 items-center justify-center"
-                style={{ backgroundColor: isDark ? "#2A2B30" : "#e2e8f0" }}
-                activeOpacity={0.8}
-              >
                 <Text
-                  className="text-base font-semibold"
-                  style={{ color: textPrimary }}
+                  style={[styles.dmcModalSubtitle, { color: textSecondary }]}
                 >
-                  Close
+                  {user?.dmcUsers?.length
+                    ? `${user.dmcUsers.length} linked account${user.dmcUsers.length !== 1 ? "s" : ""}`
+                    : "No accounts linked"}
                 </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setDmcModalVisible(false)}
+                style={[
+                  styles.dmcModalCloseBtn,
+                  { backgroundColor: isDark ? "#2A2B30" : "#e5e7eb" },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={22} color={textSecondary} />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Sign out modal */}
-      <Modal
-        visible={signOutVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSignOutVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setSignOutVisible(false)}
-          />
-          <View
-            style={[
-              styles.modalCard,
-              { backgroundColor: modalBg, borderColor: modalBorder },
-            ]}
-          >
-            <View className="items-center pt-3 pb-4 px-4">
-              <View
-                className="w-14 h-14 rounded-full items-center justify-center mb-3"
-                style={{ backgroundColor: "rgba(248, 113, 113, 0.18)" }}
-              >
-                <Ionicons name="log-out-outline" size={32} color="#f87171" />
-              </View>
-              <Text
-                className="text-lg font-bold mb-1 text-center"
-                style={{ color: textPrimary }}
-              >
-                Sign out?
-              </Text>
-              <Text
-                className="text-sm text-center"
-                style={{ color: textSecondary }}
-              >
-                You'll be returned to the sign-in screen. You can log back in at
-                any time.
-              </Text>
-            </View>
-            <View className="flex-row px-4 pb-4" style={{ gap: 12 }}>
+            {/* List */}
+            <ScrollView
+              style={[styles.dmcModalScroll, { maxHeight: 380 }]}
+              contentContainerStyle={styles.dmcModalScrollContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {user?.dmcUsers?.length ? (
+                user.dmcUsers.map((dmcUser, index) => (
+                  <View
+                    key={dmcUser.id}
+                    style={[
+                      styles.dmcCard,
+                      { backgroundColor: isDark ? "#1D1F24" : "#f8fafc" },
+                    ]}
+                  >
+                    <View style={styles.dmcCardHeader}>
+                      <View
+                        style={[
+                          styles.dmcCardNumber,
+                          {
+                            backgroundColor: isDark
+                              ? "rgba(244, 196, 48, 0.2)"
+                              : "rgba(244, 196, 48, 0.25)",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={styles.dmcCardNumberText}
+                          numberOfLines={1}
+                        >
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[styles.dmcCardCompany, { color: textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {dmcUser.dmc}
+                      </Text>
+                    </View>
+                    <View style={styles.dmcCardUser}>
+                      <View
+                        style={[
+                          styles.dmcCardAvatar,
+                          {
+                            backgroundColor: isDark ? "#2A2B30" : "#e5e7eb",
+                          },
+                        ]}
+                      >
+                        <Ionicons name="person" size={20} color={textPrimary} />
+                      </View>
+                      <View style={styles.dmcCardUserInfo}>
+                        <Text
+                          style={[
+                            styles.dmcCardUserName,
+                            { color: textPrimary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {dmcUser.name}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dmcCardUserEmail,
+                            { color: textSecondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {dmcUser.email}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.dmcEmptyState}>
+                  <View
+                    style={[
+                      styles.dmcEmptyIconWrap,
+                      { backgroundColor: isDark ? "#1D1F24" : "#f8fafc" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="people-outline"
+                      size={40}
+                      color={textSecondary}
+                    />
+                  </View>
+                  <Text style={[styles.dmcEmptyTitle, { color: textPrimary }]}>
+                    No DMC accounts
+                  </Text>
+                  <Text
+                    style={[styles.dmcEmptyMessage, { color: textSecondary }]}
+                  >
+                    Linked DMC accounts will appear here.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={[styles.dmcModalFooter, { borderTopColor: divider }]}>
               <TouchableOpacity
-                onPress={() => setSignOutVisible(false)}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center"
-                style={{ backgroundColor: isDark ? "#2A2B30" : "#e2e8f0" }}
+                onPress={() => setDmcModalVisible(false)}
+                style={[
+                  styles.dmcModalCloseButton,
+                  { backgroundColor: primary },
+                ]}
                 activeOpacity={0.8}
               >
-                <Text
-                  className="text-base font-semibold"
-                  style={{ color: textPrimary }}
-                >
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onConfirmSignOut}
-                className="flex-1 rounded-xl py-3.5 items-center justify-center"
-                style={{ backgroundColor: primary }}
-                activeOpacity={0.8}
-              >
-                <Text className="text-base font-semibold text-white">
-                  Sign out
-                </Text>
+                <Text style={styles.dmcModalCloseButtonText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
-}
+};
 
-const s = StyleSheet.create({
-  headerBg: {
-    minHeight: 260,
-    width: "100%",
-    justifyContent: "flex-start",
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
-    gap: 6,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#ffffff",
-  },
-  profileSection: {
-    alignItems: "center",
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
-  avatarCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  profileName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#ffffff",
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-  },
-  menuRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 56,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  menuRowIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
-  menuRowLabel: {
+export default Account;
+
+const styles = StyleSheet.create({
+  modalBackdrop: {
     flex: 1,
-    fontSize: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
   },
-  // DMC modal
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  // DMC modal styles
   dmcModalCard: {
     width: "100%",
     maxWidth: 400,
@@ -928,22 +1024,5 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#ffffff",
-  },
-});
-
-const styles = StyleSheet.create({
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 360,
-    borderRadius: 20,
-    borderWidth: 1,
-    overflow: "hidden",
   },
 });

@@ -5,6 +5,7 @@ import { useColorScheme } from "nativewind";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     Alert,
+    Animated,
     Dimensions,
     Image,
     ImageBackground,
@@ -23,6 +24,7 @@ import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { signOut } from "../../store/slices/authSlice";
 import { clearAuth, loadAuth } from "../../utils/authStorage";
 import { addHistoryScan } from "../../utils/scanHistoryStorage";
+import { scannerTrigger } from "../../utils/scannerTrigger";
 import {
     formatTicketDisplay,
     parseScannedTicket,
@@ -69,10 +71,12 @@ export default function TicketScannerHome() {
   >(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [todayScans, setTodayScans] = useState<TodayScanItem[]>([]);
+  const [flashEnabled, setFlashEnabled] = useState(false);
   const { colorScheme } = useColorScheme();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
   const openTodaySwipeRef = useRef<Swipeable | null>(null);
+  const scanLineAnimation = useRef(new Animated.Value(0)).current;
 
   const userId = user?.id ?? "";
 
@@ -85,13 +89,20 @@ export default function TicketScannerHome() {
   }, [userId]);
 
   useEffect(() => {
+    // Register scanner trigger
+    scannerTrigger.setCallback(openScanner);
+    
     return () => {
       if (redeemSuccessToastTimeoutRef.current) {
         clearTimeout(redeemSuccessToastTimeoutRef.current);
         redeemSuccessToastTimeoutRef.current = null;
       }
+      // Clear scanner trigger
+      scannerTrigger.clear();
+      // Stop scan line animation
+      scanLineAnimation.stopAnimation();
     };
-  }, []);
+  }, [openScanner, scanLineAnimation]);
 
   const openScanner = useCallback(async () => {
     if (!user?.id?.trim()) {
@@ -114,12 +125,39 @@ export default function TicketScannerHome() {
     }
     setLastScanned(null);
     setScanVisible(true);
+    // Start scan line animation
+    startScanLineAnimation();
   }, [user?.id, permission?.granted, requestPermission]);
+
+  const startScanLineAnimation = useCallback(() => {
+    scanLineAnimation.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanLineAnimation, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(scanLineAnimation, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, [scanLineAnimation]);
+
+  const toggleFlash = useCallback(() => {
+    setFlashEnabled(!flashEnabled);
+  }, [flashEnabled]);
 
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
       const code = data?.trim() ?? "";
       const uid = user?.id ?? "";
+
+      // Stop scan line animation
+      scanLineAnimation.stopAnimation();
 
       // Log all QR code data
       console.log("========== QR CODE SCAN DATA ==========");
@@ -214,7 +252,7 @@ export default function TicketScannerHome() {
       setScannedData(code);
       setScanResultVisible(true);
     },
-    [user?.id, lastRedeemedCode],
+    [user?.id, lastRedeemedCode, scanLineAnimation],
   );
 
   const onConfirmScannedTicket = useCallback(async () => {
@@ -470,73 +508,166 @@ export default function TicketScannerHome() {
             </Text>
           </View>
 
-          {/* Scan button – primary like login */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={openScanner}
-            className="flex-row items-center justify-center rounded-lg py-3 mb-4"
-            style={{ backgroundColor: primary }}
-          >
-            <Ionicons name="camera" size={18} color="#ffffff" />
-            <Text className="text-white text-base font-semibold ml-2">
-              Scan Voucher
-            </Text>
-          </TouchableOpacity>
-
-          {/* QR Scanner modal */}
+          {/* QR Scanner modal - PhonePe Style */}
           <Modal
             visible={scanVisible}
             animationType="slide"
             onRequestClose={() => setScanVisible(false)}
           >
-            <View className="flex-1 bg-black">
+            <View style={styles.phonePayScannerContainer}>
               {permission?.granted === false ? (
-                <View className="flex-1 items-center justify-center p-6">
-                  <Text className="text-white text-center mb-4">
-                    Camera permission is required to scan tickets.
-                  </Text>
-                  <TouchableOpacity
-                    onPress={requestPermission}
-                    className="rounded-lg px-6 py-3"
-                    style={{ backgroundColor: primary }}
-                  >
-                    <Text className="text-white font-semibold">
-                      Grant permission
+                <View style={styles.permissionContainer}>
+                  <View style={styles.permissionContent}>
+                    <View style={styles.permissionIcon}>
+                      <Ionicons name="camera-outline" size={64} color="#ffffff" />
+                    </View>
+                    <Text style={styles.permissionTitle}>
+                      Camera Permission Required
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setScanVisible(false)}
-                    className="mt-4"
-                  >
-                    <Text className="text-gray-400">Cancel</Text>
-                  </TouchableOpacity>
+                    <Text style={styles.permissionMessage}>
+                      We need camera access to scan QR codes and vouchers
+                    </Text>
+                    <TouchableOpacity
+                      onPress={requestPermission}
+                      style={[styles.permissionButton, { backgroundColor: primary }]}
+                    >
+                      <Text style={styles.permissionButtonText}>
+                        Allow Camera Access
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setScanVisible(false)}
+                      style={styles.permissionCancelButton}
+                    >
+                      <Text style={styles.permissionCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ) : (
                 <>
-                  <SafeAreaView className="flex-1" edges={["top"]}>
-                    <View className="flex-row items-center justify-between px-4 py-3 bg-black/80">
-                      <Text className="text-white text-lg font-semibold">
-                        Scan ticket QR code
-                      </Text>
+                  <SafeAreaView style={styles.scannerSafeArea} edges={["top"]}>
+                    {/* Header – Scan any QR style */}
+                    <View style={styles.phonePayHeader}>
                       <TouchableOpacity
-                        onPress={() => setScanVisible(false)}
-                        className="w-10 h-10 rounded-full bg-white/20 items-center justify-center"
+                        onPress={() => {
+                          scanLineAnimation.stopAnimation();
+                          setScanVisible(false);
+                        }}
+                        style={styles.phonePayHeaderButton}
                       >
-                        <Ionicons name="close" size={24} color="#ffffff" />
+                        <Ionicons name="arrow-back" size={24} color="#ffffff" />
+                      </TouchableOpacity>
+                      <View style={styles.phonePayHeaderCenter}>
+                        <Text style={styles.phonePayHeaderTitle}>
+                          Scan any QR
+                        </Text>
+                        <Text style={styles.phonePayHeaderSubtitle}>
+                          Voucher • Ticket • QR Code
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={toggleFlash}
+                        style={styles.phonePayHeaderButton}
+                      >
+                        <Ionicons 
+                          name={flashEnabled ? "flash" : "flash-off"} 
+                          size={24} 
+                          color={flashEnabled ? "#FFD700" : "#ffffff"} 
+                        />
                       </TouchableOpacity>
                     </View>
-                    <View style={styles.scannerContainer}>
-                      <View style={styles.scannerViewfinder}>
-                        <CameraView
-                          style={StyleSheet.absoluteFill}
-                          facing="back"
-                          barcodeScannerSettings={{
-                            barcodeTypes: ["qr"],
-                          }}
-                          onBarcodeScanned={onBarcodeScanned}
-                        />
-                        <View style={styles.scanOverlay} pointerEvents="none" />
+
+                    {/* Camera View */}
+                    <View style={styles.phonePayCameraContainer}>
+                      <CameraView
+                        style={StyleSheet.absoluteFill}
+                        facing="back"
+                        enableTorch={flashEnabled}
+                        barcodeScannerSettings={{
+                          barcodeTypes: ["qr", "ean13", "ean8", "code128"],
+                        }}
+                        onBarcodeScanned={onBarcodeScanned}
+                      />
+                      
+                      {/* Dark overlay */}
+                      <View style={styles.phonePayOverlay}>
+                        {/* Top overlay */}
+                        <View style={styles.phonePayOverlayTop} />
+                        
+                        {/* Middle row with side overlays and scanning area */}
+                        <View style={styles.phonePayOverlayMiddle}>
+                          <View style={styles.phonePayOverlaySide} />
+                          
+                          {/* Scanning Frame */}
+                          <View style={styles.phonePayScanFrame}>
+                            {/* Corner brackets */}
+                            <View style={[styles.phonePayCorner, styles.phonePayCornerTopLeft]} />
+                            <View style={[styles.phonePayCorner, styles.phonePayCornerTopRight]} />
+                            <View style={[styles.phonePayCorner, styles.phonePayCornerBottomLeft]} />
+                            <View style={[styles.phonePayCorner, styles.phonePayCornerBottomRight]} />
+                            
+                            {/* Animated scan line */}
+                            <Animated.View
+                              style={[
+                                styles.phonePayScanLine,
+                                {
+                                  transform: [{
+                                    translateY: scanLineAnimation.interpolate({
+                                      inputRange: [0, 1],
+                                      outputRange: [0, 240], // Scan frame height minus line height
+                                    })
+                                  }]
+                                }
+                              ]}
+                            />
+                          </View>
+                          
+                          <View style={styles.phonePayOverlaySide} />
+                        </View>
+                        
+                        {/* Bottom overlay */}
+                        <View style={styles.phonePayOverlayBottom} />
                       </View>
+                    </View>
+
+                    {/* Instructions */}
+                    <View style={styles.phonePayInstructions}>
+                      <Text style={styles.phonePayInstructionTitle}>
+                        Position QR code within the frame
+                      </Text>
+                      <Text style={styles.phonePayInstructionSubtitle}>
+                        Hold your phone steady to scan
+                      </Text>
+                    </View>
+
+                    {/* Bottom buttons */}
+                    <View style={styles.phonePayBottomActions}>
+                      <TouchableOpacity 
+                        style={styles.phonePayActionButton}
+                        onPress={toggleFlash}
+                      >
+                        <View style={styles.phonePayActionButtonInner}>
+                          <Ionicons 
+                            name={flashEnabled ? "flash" : "flash-off"} 
+                            size={24} 
+                            color="#ffffff" 
+                          />
+                        </View>
+                        <Text style={styles.phonePayActionButtonText}>Torch</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={styles.phonePayActionButton}
+                        onPress={() => {
+                          scanLineAnimation.stopAnimation();
+                          setScanVisible(false);
+                        }}
+                      >
+                        <View style={styles.phonePayActionButtonInner}>
+                          <Ionicons name="close" size={24} color="#ffffff" />
+                        </View>
+                        <Text style={styles.phonePayActionButtonText}>Close</Text>
+                      </TouchableOpacity>
                     </View>
                   </SafeAreaView>
                 </>
@@ -1374,27 +1505,210 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  scannerContainer: {
+  // PhonePe Style Scanner – no solid black; semi-transparent for dark mode design
+  phonePayScannerContainer: {
     flex: 1,
+    backgroundColor: "transparent",
+  },
+  scannerSafeArea: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  permissionContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  permissionContent: {
+    alignItems: "center",
+    maxWidth: 300,
+  },
+  permissionIcon: {
+    marginBottom: 24,
+  },
+  permissionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#ffffff",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  permissionMessage: {
+    fontSize: 16,
+    color: "#cccccc",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  permissionButton: {
+    width: "100%",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  permissionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+  },
+  permissionCancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  permissionCancelText: {
+    fontSize: 16,
+    color: "#888888",
+  },
+  phonePayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
-  scannerViewfinder: {
-    width: Dimensions.get("window").width - 40,
-    maxWidth: 340,
-    height: 280,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "#000",
+  phonePayHeaderButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  scanOverlay: {
+  phonePayHeaderCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  phonePayHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  phonePayHeaderSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.85)",
+    marginTop: 2,
+  },
+  phonePayCameraContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  phonePayOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderWidth: 2,
-    borderColor: "rgba(214, 40, 40, 0.8)",
-    borderRadius: 20,
-    margin: 8,
+  },
+  phonePayOverlayTop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  phonePayOverlayMiddle: {
+    height: 260,
+    flexDirection: "row",
+  },
+  phonePayOverlaySide: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  phonePayScanFrame: {
+    width: 260,
+    height: 260,
+    position: "relative",
     backgroundColor: "transparent",
+  },
+  phonePayCorner: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderColor: "#6C3BF5",
+    borderWidth: 4,
+  },
+  phonePayCornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+  },
+  phonePayCornerTopRight: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+  },
+  phonePayCornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+  },
+  phonePayCornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+  },
+  phonePayScanLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "#6C3BF5",
+    borderRadius: 1.5,
+    shadowColor: "#6C3BF5",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  phonePayOverlayBottom: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  phonePayInstructions: {
+    paddingHorizontal: 32,
+    paddingVertical: 24,
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  phonePayInstructionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#ffffff",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  phonePayInstructionSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+  },
+  phonePayBottomActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 40,
+    paddingVertical: 24,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  phonePayActionButton: {
+    alignItems: "center",
+  },
+  phonePayActionButtonInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  phonePayActionButtonText: {
+    fontSize: 12,
+    color: "#ffffff",
+    fontWeight: "500",
   },
   resultModalBackdrop: {
     flex: 1,
