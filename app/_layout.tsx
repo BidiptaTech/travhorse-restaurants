@@ -9,8 +9,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
 import "../global.css";
 import { store } from "../store";
-import { setCredentials } from "../store/slices/authSlice";
-import { loadAuth } from "../utils/authStorage";
+import { setCredentials, updateUser } from "../store/slices/authSlice";
+import { getStoredProfileImage, loadAuth } from "../utils/authStorage";
 import { getStoredTheme } from "../utils/themeStorage";
 
 export default function RootLayout() {
@@ -25,9 +25,16 @@ export default function RootLayout() {
   // Restore saved login so user remains signed in until logout.
   React.useEffect(() => {
     loadAuth()
-      .then((auth) => {
+      .then(async (auth) => {
         if (auth?.token && auth?.user) {
           store.dispatch(setCredentials(auth));
+          // If login didn't provide an image, use this user's stored profile image.
+          if (!auth.user.image && auth.user.id) {
+            const storedImage = await getStoredProfileImage(auth.user.id);
+            if (storedImage) {
+              store.dispatch(updateUser({ image: storedImage }));
+            }
+          }
         }
       })
       .finally(() => {

@@ -117,7 +117,7 @@ export const fetchRestaurantOrders = createAsyncThunk<
     // Token expired, invalid, or server error (500) – clear auth and force navigate to login
     if (res.status === 401 || res.status === 403 || res.status === 500) {
       dispatch(signOut());
-      await clearAuth().catch(() => {});
+      await clearAuth(auth?.user?.id).catch(() => {});
       return rejectWithValue(
         res.status === 500
           ? "Server error. Please sign in again."

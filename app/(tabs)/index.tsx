@@ -77,6 +77,8 @@ export default function TicketScannerHome() {
   const { user } = useAppSelector((s) => s.auth);
   const openTodaySwipeRef = useRef<Swipeable | null>(null);
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
+  const lastBarcodeScannedAt = useRef(0);
+  const SCAN_THROTTLE_MS = 1200;
 
   const userId = user?.id ?? "";
 
@@ -88,21 +90,23 @@ export default function TicketScannerHome() {
     }
   }, [userId]);
 
-  useEffect(() => {
-    // Register scanner trigger
-    scannerTrigger.setCallback(openScanner);
-    
-    return () => {
-      if (redeemSuccessToastTimeoutRef.current) {
-        clearTimeout(redeemSuccessToastTimeoutRef.current);
-        redeemSuccessToastTimeoutRef.current = null;
-      }
-      // Clear scanner trigger
-      scannerTrigger.clear();
-      // Stop scan line animation
-      scanLineAnimation.stopAnimation();
-    };
-  }, [openScanner, scanLineAnimation]);
+  const startScanLineAnimation = useCallback(() => {
+    scanLineAnimation.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanLineAnimation, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(scanLineAnimation, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, [scanLineAnimation]);
 
   const openScanner = useCallback(async () => {
     if (!user?.id?.trim()) {
@@ -125,27 +129,20 @@ export default function TicketScannerHome() {
     }
     setLastScanned(null);
     setScanVisible(true);
-    // Start scan line animation
     startScanLineAnimation();
-  }, [user?.id, permission?.granted, requestPermission]);
+  }, [user?.id, permission?.granted, requestPermission, startScanLineAnimation]);
 
-  const startScanLineAnimation = useCallback(() => {
-    scanLineAnimation.setValue(0);
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanLineAnimation, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: false,
-        }),
-        Animated.timing(scanLineAnimation, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-  }, [scanLineAnimation]);
+  useEffect(() => {
+    scannerTrigger.setCallback(openScanner);
+    return () => {
+      if (redeemSuccessToastTimeoutRef.current) {
+        clearTimeout(redeemSuccessToastTimeoutRef.current);
+        redeemSuccessToastTimeoutRef.current = null;
+      }
+      scannerTrigger.clear();
+      scanLineAnimation.stopAnimation();
+    };
+  }, [openScanner, scanLineAnimation]);
 
   const toggleFlash = useCallback(() => {
     setFlashEnabled(!flashEnabled);
@@ -154,20 +151,20 @@ export default function TicketScannerHome() {
   const onBarcodeScanned = useCallback(
     ({ data }: { data: string }) => {
       const code = data?.trim() ?? "";
-      const uid = user?.id ?? "";
+      if (!code) return;
 
-      // Stop scan line animation
+      const now = Date.now();
+      if (now - lastBarcodeScannedAt.current < SCAN_THROTTLE_MS) return;
+      lastBarcodeScannedAt.current = now;
+
+      const uid = user?.id ?? "";
       scanLineAnimation.stopAnimation();
 
-      // Log all QR code data
-      console.log("========== QR CODE SCAN DATA ==========");
-      console.log("Raw QR Code Data:", data);
-      console.log("Trimmed QR Code:", code);
-      console.log("User ID (Restaurant ID):", uid);
-      console.log("Timestamp:", new Date().toISOString());
+      if (__DEV__) {
+        console.log("QR scan:", code.slice(0, 40) + (code.length > 40 ? "…" : ""));
+      }
 
       if (!uid) {
-        console.log("❌ Error: Restaurant ID not found in user account");
         setRestaurantIdErrorTitle("Restaurant ID not found");
         setRestaurantIdErrorMessage(
           "Your account is missing a restaurant ID. Please sign out and sign in again.",
@@ -179,14 +176,7 @@ export default function TicketScannerHome() {
         return;
       }
 
-      if (!code) {
-        console.log("❌ Error: Empty QR code data");
-        return;
-      }
-
-      // If this exact code was just redeemed, show error (already redeemed) and close camera
       if (lastRedeemedCode && code === lastRedeemedCode) {
-        console.log("❌ Error: QR code already redeemed:", code);
         setScanVisible(false);
         setScannedData(null);
         setScanResultVisible(false);
@@ -197,29 +187,12 @@ export default function TicketScannerHome() {
       }
 
       const ticket = parseScannedTicket(code);
-      console.log("Parsed Ticket Object:", JSON.stringify(ticket, null, 2));
-      console.log("Ticket Details:", {
-        tid: ticket?.tid,
-        bid: ticket?.bid,
-        rid: ticket?.rid,
-        r: ticket?.r,
-        rd: ticket?.rd,
-        rt: ticket?.rt,
-        mt: ticket?.mt,
-        ms: ticket?.ms,
-        g: ticket?.g,
-        p: ticket?.p,
-        ref: ticket?.ref,
-        dmc: ticket?.dmc,
-      });
 
-      // Ticket must contain a restaurant ID (rid) to be valid
       if (
         ticket &&
         (ticket.tid != null || ticket.bid != null || ticket.r != null)
       ) {
         if (ticket.rid == null || ticket.rid === "") {
-          console.log("❌ Error: Ticket missing restaurant ID (rid)");
           setRestaurantIdErrorTitle("Restaurant ID not found");
           setRestaurantIdErrorMessage(
             "This ticket does not contain a restaurant ID and cannot be validated.",
@@ -231,22 +204,13 @@ export default function TicketScannerHome() {
           return;
         }
         if (String(ticket.rid) !== uid) {
-          console.log("❌ Error: Restaurant ID mismatch");
-          console.log("  Ticket RID:", ticket.rid);
-          console.log("  User UID:", uid);
           setScanVisible(false);
           setScannedData(null);
           setScanResultVisible(false);
           setInvalidTicketVisible(true);
           return;
         }
-        console.log("✅ Ticket validation passed");
-      } else {
-        console.log("⚠️ Warning: Ticket format may be invalid or incomplete");
       }
-
-      console.log("✅ QR code scan successful, showing result modal");
-      console.log("========================================");
 
       setScanVisible(false);
       setScannedData(code);
@@ -308,7 +272,7 @@ export default function TicketScannerHome() {
       // Token expired, invalid, or server error (500) – clear auth and force navigate to login
       if (res.status === 401 || res.status === 403 || res.status === 500) {
         dispatch(signOut());
-        await clearAuth().catch(() => {});
+        await clearAuth(user?.id).catch(() => {});
         router.replace("/(auth-pages)/SignIn");
         return;
       }
@@ -426,8 +390,12 @@ export default function TicketScannerHome() {
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <Image
-              source={require("@/assets/images/adaptive-icon2.png")}
-              style={styles.headerLogo}
+              source={
+                user?.image
+                  ? { uri: user.image }
+                  : require("@/assets/images/adaptive-icon2.png")
+              }
+              style={styles.headerAvatar}
               resizeMode="cover"
             />
             <Text
@@ -584,7 +552,7 @@ export default function TicketScannerHome() {
                         facing="back"
                         enableTorch={flashEnabled}
                         barcodeScannerSettings={{
-                          barcodeTypes: ["qr", "ean13", "ean8", "code128"],
+                          barcodeTypes: ["qr"],
                         }}
                         onBarcodeScanned={onBarcodeScanned}
                       />
@@ -1490,6 +1458,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
+  },
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   headerHistoryBtn: {
     width: 40,

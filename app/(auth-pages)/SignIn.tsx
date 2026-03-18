@@ -1,13 +1,16 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "nativewind";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Image,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
-  Alert,
-  ActivityIndicator,
   TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -16,19 +19,31 @@ import topBgBackground from "@/assets/images/top-bg-shape.png";
 import FormField from "@/components/inputFields/FormField";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  setCredentials,
   AUTH_LOGIN_ENDPOINT,
+  setCredentials,
   type User,
 } from "@/store/slices/authSlice";
 import { saveAuth } from "@/utils/authStorage";
 
+const primary = "#613BFF";
+
 const SignIn = () => {
   const dispatch = useAppDispatch();
+  const { colorScheme } = useColorScheme();
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [loginErrorVisible, setLoginErrorVisible] = useState(false);
+  const [loginErrorTitle, setLoginErrorTitle] = useState("Sign In Failed");
+  const [loginErrorMessage, setLoginErrorMessage] = useState("");
+
+  const isDark = colorScheme === "dark";
+  const modalBg = isDark ? "#18191C" : "#ffffff";
+  const modalBorder = isDark ? "#2A2B30" : "#e2e7eb";
+  const textPrimary = isDark ? "#ffffff" : "#111827";
+  const textSecondary = isDark ? "#9ca3af" : "#6b7280";
 
   // If already logged in (restored from storage), skip Sign In.
   React.useEffect(() => {
@@ -66,13 +81,23 @@ const SignIn = () => {
     return isValid;
   };
 
+  const showLoginError = (title: string, message: string) => {
+    setLoginErrorTitle(title);
+    setLoginErrorMessage(message);
+    setLoginErrorVisible(true);
+  };
+
   const handleSignIn = async () => {
     if (!validateForm()) {
-      Alert.alert("Validation Error", "Please fix the errors in the form");
+      showLoginError(
+        "Validation Error",
+        "Please fix the errors in the form before signing in.",
+      );
       return;
     }
 
     setLoading(true);
+    setLoginErrorVisible(false);
     try {
       const res = await fetch(AUTH_LOGIN_ENDPOINT, {
         method: "POST",
@@ -87,7 +112,7 @@ const SignIn = () => {
       if (!res.ok) {
         const message =
           data?.message || data?.error || `Login failed (${res.status})`;
-        Alert.alert("Sign In Failed", message);
+        showLoginError("Sign In Failed", message);
         return;
       }
 
@@ -97,7 +122,10 @@ const SignIn = () => {
       const userPayload = data?.data ?? data?.user ?? data;
 
       if (!token) {
-        Alert.alert("Sign In Failed", "No token received from server.");
+        showLoginError(
+          "Sign In Failed",
+          "No token received from server. Please try again.",
+        );
         return;
       }
 
@@ -119,12 +147,12 @@ const SignIn = () => {
         ),
         email: userPayload?.restaurant_email ?? email.trim(),
         name: userPayload?.restaurant_name ?? userPayload?.name ?? undefined,
-      
+        image: userPayload?.profile_image ?? undefined,
         dmcUsers: userPayload?.dmcDetails?.map((dmc: any) => ({
           id: String(dmc.userId),
           email: dmc.email,
           name: dmc.name,
-          dmc:dmc.dmc || 'No DMC',
+          dmc: dmc.dmc || "No DMC",
         })) ?? [],
       };
 
@@ -133,9 +161,9 @@ const SignIn = () => {
       saveAuth({ user, token }).catch(() => {});
       router.replace("/(tabs)");
     } catch (err) {
-      Alert.alert(
+      showLoginError(
         "Error",
-        err instanceof Error ? err.message : "Network error. Please try again."
+        err instanceof Error ? err.message : "Network error. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -211,11 +239,119 @@ const SignIn = () => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Login error modal – well designed */}
+      <Modal
+        visible={loginErrorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLoginErrorVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setLoginErrorVisible(false)}
+          />
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: modalBg, borderColor: modalBorder },
+            ]}
+          >
+            <View style={styles.errorIconWrap}>
+              <View
+                style={[
+                  styles.errorIconCircle,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(239, 68, 68, 0.2)"
+                      : "rgba(239, 68, 68, 0.12)",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="lock-closed"
+                  size={48}
+                  color="#dc2626"
+                />
+              </View>
+            </View>
+            <Text style={[styles.errorTitle, { color: textPrimary }]}>
+              {loginErrorTitle}
+            </Text>
+            <Text
+              style={[styles.errorMessage, { color: textSecondary }]}
+            >
+              {loginErrorMessage}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setLoginErrorVisible(false)}
+              style={[styles.errorButton, { backgroundColor: primary }]}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.errorButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 export default SignIn;
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 28,
+    paddingTop: 32,
+    paddingBottom: 28,
+    alignItems: "center",
+  },
+  errorIconWrap: {
+    marginBottom: 20,
+  },
+  errorIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  errorMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  errorButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+  },
+});
 
