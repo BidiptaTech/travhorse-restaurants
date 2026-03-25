@@ -87,6 +87,65 @@ const SignIn = () => {
     setLoginErrorVisible(true);
   };
 
+  const getFriendlyLoginError = (status: number, rawError: unknown) => {
+    const raw =
+      typeof rawError === "string"
+        ? rawError
+        : rawError && typeof rawError === "object" && "message" in rawError
+          ? String((rawError as { message?: unknown }).message ?? "")
+          : rawError
+            ? String(rawError)
+            : "";
+
+    // Log full details for debugging, but never show them in the UI.
+    console.log("[Login] raw error payload", { status, raw });
+
+    const lower = raw.toLowerCase();
+    const looksLikeDb =
+      lower.includes("sqlstate") ||
+      lower.includes("psql") ||
+      lower.includes("postgres") ||
+      lower.includes("fe_sendauth") ||
+      lower.includes("no password supplied") ||
+      lower.includes("connection to server") ||
+      lower.includes("could not connect") ||
+      lower.includes("database");
+
+    if (status === 401 || status === 403) {
+      return {
+        title: "Invalid credentials",
+        message: "The email or password you entered is incorrect. Please try again.",
+      };
+    }
+
+    if (status === 404) {
+      return {
+        title: "Account not found",
+        message: "We couldn’t find an account for this email. Please check and try again.",
+      };
+    }
+
+    if (status >= 500 || looksLikeDb || raw.length > 160) {
+      return {
+        title: "Server issue",
+        message:
+          "We’re unable to complete login right now. Please try again in a moment.",
+      };
+    }
+
+    if (raw) {
+      return {
+        title: "Login failed",
+        message: raw.length > 140 ? "Please try again." : raw,
+      };
+    }
+
+    return {
+      title: "Login failed",
+      message: "Please try again.",
+    };
+  };
+
   const handleSignIn = async () => {
     if (!validateForm()) {
       showLoginError(
@@ -110,9 +169,8 @@ const SignIn = () => {
       console.log("[Login] response", { status: res.status, data });
 
       if (!res.ok) {
-        const message =
-          data?.message || data?.error || `Login failed (${res.status})`;
-        showLoginError("Sign In Failed", message);
+        const friendly = getFriendlyLoginError(res.status, data?.message ?? data?.error);
+        showLoginError(friendly.title, friendly.message);
         return;
       }
 

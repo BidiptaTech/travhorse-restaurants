@@ -7,6 +7,75 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 /** GET restaurant orders (ongoing + upcoming; past ignored). */
 export const RESTAURANT_ORDERS_ENDPOINT = apiUrl("restaurant-orders");
 
+export type OrdersErrorKind = "session" | "server" | "not_found" | "generic";
+
+export interface OrdersFetchError {
+  title: string;
+  message: string;
+  kind: OrdersErrorKind;
+}
+
+const AUTH_SIGN_OUT = new Set([401, 403]);
+const SERVER_SIGN_OUT = new Set([500, 502, 503, 504]);
+
+function sessionExpiredError(): OrdersFetchError {
+  return {
+    title: "Session expired",
+    message: "Your session is no longer valid. Please sign in again to continue.",
+    kind: "session",
+  };
+}
+
+function serverErrorForStatus(status: number): OrdersFetchError {
+  switch (status) {
+    case 502:
+      return {
+        title: "Bad gateway",
+        message:
+          "We could not reach the service (502). Please try again in a moment, then sign in if the problem continues.",
+        kind: "server",
+      };
+    case 503:
+      return {
+        title: "Service unavailable",
+        message:
+          "Orders are temporarily unavailable (503). Please wait a short time and try again.",
+        kind: "server",
+      };
+    case 504:
+      return {
+        title: "Request timed out",
+        message:
+          "The server took too long to respond (504). Check your connection and try again.",
+        kind: "server",
+      };
+    default:
+      return {
+        title: "Server error",
+        message:
+          "Something went wrong on our end. Please sign in again or try later.",
+        kind: "server",
+      };
+  }
+}
+
+function notFoundError(): OrdersFetchError {
+  return {
+    title: "Not found",
+    message:
+      "This orders endpoint or resource was not found (404). It may have moved or your account may not have access.",
+    kind: "not_found",
+  };
+}
+
+function wrapStringError(message: string): OrdersFetchError {
+  return {
+    title: "Unable to load orders",
+    message,
+    kind: "generic",
+  };
+}
+
 /** First element of order.data from API (booking details). */
 export interface OrderDataItem {
   bookingDate?: string;
@@ -95,7 +164,7 @@ export const fetchRestaurantOrders = createAsyncThunk<
     const auth = await loadAuth();
     const token = auth?.token ?? null;
     if (!token) {
-      return rejectWithValue("Not authenticated");
+      return rejectWithValue(wrapStringError("Not authenticated"));
     }
 
     const res = await fetch(RESTAURANT_ORDERS_ENDPOINT, {
@@ -114,21 +183,26 @@ export const fetchRestaurantOrders = createAsyncThunk<
       data: json,
     });
 
-    // Token expired, invalid, or server error (500) – clear auth and force navigate to login
-    if (res.status === 401 || res.status === 403 || res.status === 500) {
+    if (AUTH_SIGN_OUT.has(res.status)) {
       dispatch(signOut());
       await clearAuth(auth?.user?.id).catch(() => {});
-      return rejectWithValue(
-        res.status === 500
-          ? "Server error. Please sign in again."
-          : "Session expired. Please sign in again.",
-      );
+      return rejectWithValue(sessionExpiredError());
+    }
+
+    if (SERVER_SIGN_OUT.has(res.status)) {
+      dispatch(signOut());
+      await clearAuth(auth?.user?.id).catch(() => {});
+      return rejectWithValue(serverErrorForStatus(res.status));
+    }
+
+    if (res.status === 404) {
+      return rejectWithValue(notFoundError());
     }
 
     if (!res.ok) {
-      return rejectWithValue(
-        json?.message ?? json?.error ?? `Request failed (${res.status})`,
-      );
+      const detail =
+        json?.message ?? json?.error ?? `Request failed (${res.status})`;
+      return rejectWithValue(wrapStringError(String(detail)));
     }
 
     // API can return { data: { data: [...] } } or { data: [...] } or { data: { data: [...], message, success } }
@@ -155,7 +229,7 @@ export interface OrdersState {
   ongoing: RestaurantOrder[];
   upcoming: RestaurantOrder[];
   loading: boolean;
-  error: string | null;
+  error: OrdersFetchError | null;
 }
 
 const initialState: OrdersState = {
@@ -164,6 +238,25 @@ const initialState: OrdersState = {
   loading: false,
   error: null,
 };
+
+function rejectedPayloadToError(
+  payload: unknown,
+  fallbackMessage: string,
+): OrdersFetchError {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "title" in payload &&
+    "message" in payload &&
+    "kind" in payload
+  ) {
+    return payload as OrdersFetchError;
+  }
+  if (typeof payload === "string") {
+    return wrapStringError(payload);
+  }
+  return wrapStringError(fallbackMessage);
+}
 
 const ordersSlice = createSlice({
   name: "orders",
@@ -191,8 +284,10 @@ const ordersSlice = createSlice({
       })
       .addCase(fetchRestaurantOrders.rejected, (state, action) => {
         state.loading = false;
-        state.error =
-          (action.payload as string | undefined) ?? "Failed to load orders";
+        state.error = rejectedPayloadToError(
+          action.payload,
+          action.error?.message ?? "Failed to load orders",
+        );
       });
   },
 });

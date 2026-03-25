@@ -1,5 +1,7 @@
+import { OrdersErrorModal } from "@/components/OrdersErrorModal";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+    clearOrdersError,
     fetchRestaurantOrders,
     type OrderDataItem,
     type RestaurantOrder,
@@ -325,21 +327,7 @@ export default function OngoingScreen() {
           />
         }
       >
-        {error ? (
-          <View className="items-center justify-center mt-16">
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={textSecondary}
-            />
-            <Text
-              className="text-sm mt-2 text-center px-4"
-              style={{ color: textSecondary }}
-            >
-              {error}
-            </Text>
-          </View>
-        ) : (loading || refreshing) && filteredOrders.length === 0 ? (
+        {(loading || refreshing) && filteredOrders.length === 0 ? (
           <View className="items-center justify-center mt-16">
             <ActivityIndicator size="large" color={textSecondary} />
             <Text
@@ -417,7 +405,7 @@ export default function OngoingScreen() {
               </TouchableOpacity>
             ))}
 
-            {filteredOrders.length === 0 && (
+            {filteredOrders.length === 0 && !error && (
               <View className="items-center justify-center mt-16">
                 <Ionicons
                   name={searchQuery.trim() ? "search-outline" : "time-outline"}
@@ -517,6 +505,14 @@ export default function OngoingScreen() {
           )}
         </View>
       </Modal>
+
+      <OrdersErrorModal
+        visible={!!error}
+        error={error}
+        isDark={isDark}
+        primaryTint="#D62828"
+        onDismiss={() => dispatch(clearOrdersError())}
+      />
     </SafeAreaView>
   );
 }
