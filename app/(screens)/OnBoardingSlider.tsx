@@ -13,6 +13,7 @@ import Animated, {
   useDerivedValue,
   useSharedValue,
 } from "react-native-reanimated";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { onbordingSliderData } from "@/constants/data";
 import OnBoardingSliderItem, {
   ItemProps,
@@ -85,7 +86,7 @@ const OnBoardingSlider = () => {
       useAnimatedStyle(() => ({
         backgroundColor:
           flatListIndex.value >= index
-            ? "#613BFF"
+            ? BRAND_BLUE
             : colorScheme === "dark"
             ? "#242424"
             : "#ffff",
@@ -138,7 +139,7 @@ const OnBoardingSlider = () => {
                 });
               }}
               className="bg-p1 rounded-full w-14 h-14 items-center justify-center shadow-lg"
-              style={{ shadowColor: "#613BFF", shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}
+              style={{ shadowColor: BRAND_BLUE, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}
             >
               <Ionicons name="chevron-forward" size={28} color="#ffffff" />
             </Pressable>

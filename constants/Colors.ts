@@ -2,7 +2,10 @@
  * Colors used in the app for light and dark mode.
  */
 
-const tintColorLight = "#613BFF";
+/** Header wave, tab bar, primary actions (replaces former purple accent). */
+export const BRAND_BLUE = "#0759c6";
+
+const tintColorLight = BRAND_BLUE;
 const tintColorDark = "#fff";
 
 export const Colors = {

@@ -1,4 +1,5 @@
-import PageTitle from "@/components/ui/PageTitle";
+import { WaveScreenHeader } from "@/components/ui/WaveScreenHeader";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -27,7 +28,6 @@ import { PhSignOut } from "../../assets/icons/SignOut";
 import { PhEye } from "../../assets/icons/eye";
 import logoutModalBgDark from "../../assets/images/logout-modal-bg-dark.png";
 import logoutModalBg from "../../assets/images/logout-modal-bg-white.png";
-import topBgBackground2 from "../../assets/images/top-bg-shape2.png";
 import { AppDispatch } from "../../store";
 import { useAppSelector } from "../../store/hooks";
 import {
@@ -82,7 +82,7 @@ const Account = () => {
   const textSecondary = isDark ? "#9ca3af" : "#6b7280";
   const modalBg = isDark ? "#18191C" : "#ffffff";
   const modalBorder = isDark ? "#2A2B30" : "#e2e7eb";
-  const primary = "#613BFF";
+  const primary = BRAND_BLUE;
   const divider = isDark ? "#2A2B30" : "#e5e7eb";
 
   const toggleColorScheme = () => {
@@ -329,12 +329,7 @@ const Account = () => {
   return (
     <View className="bg-b50 min-h-full dark:bg-n50 dark:text-white">
       <ScrollView className="">
-        <View className="">
-          <View className=" absolute top-0 left-0 right-0   ">
-            <Image source={topBgBackground2} className="w-full h-[209px]  " />
-          </View>
-          <PageTitle pageName="Account" hideBackBautton={true} />
-        </View>
+        <WaveScreenHeader title="Account" showBackButton={false} />
         <View className="flex items-center justify-center flex-col gap-y-2 pt-4">
           <Pressable
             onPress={profileImageLoading ? undefined : pickProfileImage}
@@ -379,7 +374,7 @@ const Account = () => {
           >
             <View className="flex-row items-center justify-start gap-2">
               <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                <PhUsersThree color="#613bff" size="16px" />
+                <PhUsersThree color={BRAND_BLUE} size="16px" />
               </View>
               <Text className="font-semibold dark:text-white">
                 Passengers List
@@ -394,7 +389,7 @@ const Account = () => {
           >
             <View className="flex-row items-center justify-start gap-2">
               <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                <PhTag color="#613bff" size="16px" />
+                <PhTag color={BRAND_BLUE} size="16px" />
               </View>
               <Text className="font-semibold dark:text-white">
                 Discounts / Vouchers
@@ -408,7 +403,7 @@ const Account = () => {
           >
             <View className="flex-row items-center justify-start gap-2">
               <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                <PhCoins color="#613bff" size="16px" />
+                <PhCoins color={BRAND_BLUE} size="16px" />
               </View>
               <Text className="font-semibold dark:text-white">
                 AirBook Points
@@ -422,7 +417,7 @@ const Account = () => {
           >
             <View className="flex-row items-center justify-start gap-2">
               <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                <PhWalletLight color="#613bff" size="16px" type="light" />
+                <PhWalletLight color={BRAND_BLUE} size="16px" type="light" />
               </View>
               <Text className="font-semibold dark:text-white">
                 Payment Methods
@@ -436,7 +431,7 @@ const Account = () => {
           >
             <View className="flex-row items-center justify-start gap-2">
               <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                <PhMapPin color="#613bff" size="16px" />
+                <PhMapPin color={BRAND_BLUE} size="16px" />
               </View>
               <Text className="font-semibold dark:text-white">
                 Saved Address
@@ -450,7 +445,7 @@ const Account = () => {
           >
             <View className="flex-row items-center justify-start gap-2">
               <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                <PhArrowsDownUp color="#613bff" size="16px" />
+                <PhArrowsDownUp color={BRAND_BLUE} size="16px" />
               </View>
               <Text className="font-semibold dark:text-white">
                 Linked Accounts
@@ -474,7 +469,7 @@ const Account = () => {
                   <Ionicons
                     name="share-social-outline"
                     size={16}
-                    color="#613bff"
+                    color={BRAND_BLUE}
                   />
                 </View>
                 <Text className="font-semibold dark:text-white">Share App</Text>
@@ -494,7 +489,7 @@ const Account = () => {
                   <Ionicons
                     name="lock-closed-outline"
                     size={16}
-                    color="#613bff"
+                    color={BRAND_BLUE}
                   />
                 </View>
                 <Text className="font-semibold dark:text-white">
@@ -512,7 +507,7 @@ const Account = () => {
               >
                 <View className="flex-row items-center justify-start gap-2">
                   <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                    <Ionicons name="people-outline" size={16} color="#613bff" />
+                    <Ionicons name="people-outline" size={16} color={BRAND_BLUE} />
                   </View>
                   <View>
                     <Text className="font-semibold dark:text-white">
@@ -534,7 +529,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhUserLight type="light" color="#613bff" size="16px" />
+                  <PhUserLight type="light" color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">
                   Personal Info
@@ -548,7 +543,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhBell color="#613bff" size="16px" />
+                  <PhBell color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">
                   Notification
@@ -563,7 +558,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhShieldCheck color="#613bff" size="16px" />
+                  <PhShieldCheck color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">Security</Text>
               </View>
@@ -575,7 +570,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhTranslate color="#613bff" size="16px" />
+                  <PhTranslate color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">Language</Text>
               </View>
@@ -587,7 +582,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhEye color="#613bff" size="16px" />
+                  <PhEye color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">
                   Appearance
@@ -606,7 +601,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhHeadset color="#613bff" size="16px" />
+                  <PhHeadset color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">
                   Help Centre
@@ -620,7 +615,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhInfo color="#613bff" size="16px" />
+                  <PhInfo color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-semibold dark:text-white">
                   About Airbook
@@ -652,7 +647,7 @@ const Account = () => {
             >
               <View className="flex-row items-center justify-start gap-2">
                 <View className=" flex items-center justify-center rounded-full bg-b50 p-2 text-p1 dark:bg-n50">
-                  <PhSignOut color="#613bff" size="16px" />
+                  <PhSignOut color={BRAND_BLUE} size="16px" />
                 </View>
                 <Text className="font-bold text-red-600 dark:text-red-500">
                   Logout

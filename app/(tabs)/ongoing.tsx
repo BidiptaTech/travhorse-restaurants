@@ -1,4 +1,5 @@
 import { OrdersErrorModal } from "@/components/OrdersErrorModal";
+import { WaveScreenHeader } from "@/components/ui/WaveScreenHeader";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
     clearOrdersError,
@@ -9,12 +10,10 @@ import {
 import { formatDateShort, formatTimeAmPm } from "@/utils/dateFormat";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { router } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    ImageBackground,
     Modal,
     Pressable,
     RefreshControl,
@@ -106,24 +105,8 @@ export default function OngoingScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }} edges={["top"]}>
-      {/* Sticky header – purple wave, stays fixed when scrolling */}
-      <ImageBackground
-        source={require("@/assets/images/top-bg-shape2.png")}
-        style={styles.headerBg}
-        resizeMode="stretch"
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.8}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="chevron-back" size={26} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Ongoing events</Text>
-        </View>
-      </ImageBackground>
+    <SafeAreaView className="flex-1" style={{ backgroundColor: bg }} edges={["left", "right", "bottom"]}>
+      <WaveScreenHeader title="Ongoing events" showBackButton />
 
       {/* Sticky search + DMC filter */}
       <View className="px-4 pt-3 pb-2" style={{ backgroundColor: bg }}>
@@ -644,24 +627,6 @@ function OrderDetailRows({
 }
 
 const styles = StyleSheet.create({
-  headerBg: {
-    minHeight: 120,
-    width: "100%",
-    justifyContent: "flex-start",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginLeft: 8,
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",

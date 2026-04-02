@@ -1,3 +1,5 @@
+import { WaveScreenHeader } from "@/components/ui/WaveScreenHeader";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
@@ -8,7 +10,6 @@ import {
     Animated,
     Dimensions,
     Image,
-    ImageBackground,
     Modal,
     Pressable,
     ScrollView,
@@ -364,11 +365,10 @@ export default function TicketScannerHome() {
     setScanToDelete(null);
   }, []);
 
-  // Theme aligned with Sign In page: b50, n50, n400, n500, p1 (tailwind.config.js)
+  // Theme: b50, n50, n400, n500; accent BRAND_BLUE (header / tab bar)
   const isDark = colorScheme === "dark";
-  const primary = "#613BFF"; // p1 – same as login button
+  const primary = BRAND_BLUE;
   const iconColor = isDark ? "#ffffff" : "#4A4A4A"; // n400
-  const headerBg = isDark ? "#151718" : "#F5F5F7"; // n50 / b50
   const contentBg = isDark ? "#151718" : "#F5F5F7"; // n50 / b50
   const cardBgAlt = isDark ? "#242428" : "#EEEEF0"; // n6 / light gray
   const qrPlaceholderBg = isDark ? "#1A1A1C" : "#E5E5E7";
@@ -379,42 +379,18 @@ export default function TicketScannerHome() {
     <SafeAreaView
       className="flex-1"
       style={{ backgroundColor: isDark ? "#151718" : "#F5F5F7" }}
-      edges={["top"]}
+      edges={["left", "right", "bottom"]}
     >
-      {/* Sticky header – stays fixed at top when scrolling */}
-      <ImageBackground
-        source={require("@/assets/images/top-bg-shape2.png")}
-        style={styles.headerBg}
-        resizeMode="stretch"
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Image
-              source={
-                user?.image
-                  ? { uri: user.image }
-                  : require("@/assets/images/adaptive-icon2.png")
-              }
-              style={styles.headerAvatar}
-              resizeMode="cover"
-            />
-            <Text
-              className="text-xl font-semibold ml-3"
-              style={{ color: "#ffffff" }}
-              numberOfLines={1}
-            >
-              {user?.name || "Restaurant"}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => router.push("/(tabs)/history")}
-            style={styles.headerHistoryBtn}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="time-outline" size={20} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
-      </ImageBackground>
+      <WaveScreenHeader
+        showProfile
+        userName={user?.name || "Restaurant"}
+        userAvatarSource={
+          user?.image
+            ? { uri: user.image }
+            : require("@/assets/images/adaptive-icon2.png")
+        }
+        onHistoryPress={() => router.push("/(tabs)/history")}
+      />
 
       <ScrollView
         className="flex-1"
@@ -1434,46 +1410,6 @@ export default function TicketScannerHome() {
 }
 
 const styles = StyleSheet.create({
-  headerBg: {
-    minHeight: 140,
-    width: "100%",
-    justifyContent: "flex-start",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    minWidth: 0,
-  },
-  headerLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-  },
-  headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  headerHistoryBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 12,
-  },
   qrPlaceholder: {
     height: 220,
     borderRadius: 12,
@@ -1598,7 +1534,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 28,
     height: 28,
-    borderColor: "#6C3BF5",
+    borderColor: BRAND_BLUE,
     borderWidth: 4,
   },
   phonePayCornerTopLeft: {
@@ -1630,9 +1566,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: "#6C3BF5",
+    backgroundColor: BRAND_BLUE,
     borderRadius: 1.5,
-    shadowColor: "#6C3BF5",
+    shadowColor: BRAND_BLUE,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7,
     shadowRadius: 4,

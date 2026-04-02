@@ -3,7 +3,6 @@ import { useColorScheme } from "nativewind";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -14,9 +13,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import PageTitle from "@/components/ui/PageTitle";
-import topBgBackground from "@/assets/images/top-bg-shape.png";
+import { WaveScreenHeader } from "@/components/ui/WaveScreenHeader";
 import FormField from "@/components/inputFields/FormField";
+import { BRAND_BLUE } from "@/constants/Colors";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   AUTH_LOGIN_ENDPOINT,
@@ -24,8 +23,6 @@ import {
   type User,
 } from "@/store/slices/authSlice";
 import { saveAuth } from "@/utils/authStorage";
-
-const primary = "#613BFF";
 
 const SignIn = () => {
   const dispatch = useAppDispatch();
@@ -229,22 +226,21 @@ const SignIn = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-b50 dark:bg-n50">
+    <SafeAreaView
+      className="flex-1 bg-b50 dark:bg-n50"
+      edges={["left", "right", "bottom"]}
+    >
+      <WaveScreenHeader
+        title="Sign In"
+        showBackButton
+        onBackPress={() => router.replace("/(screens)/OnBoardingSlider")}
+      />
       <ScrollView className="flex-1">
-        <View className="pb-16">
-          <View className="absolute w-full top-0 left-0 right-0">
-            <Image
-              source={topBgBackground}
-              className="w-full h-[250px] -mt-20"
-            />
-          </View>
-          <PageTitle pageName="Sign In" backTo="/(screens)/OnBoardingSlider" />
-        </View>
-
-        <View className="pt-14 px-6">
-        <Text className="text-sm text-n400 dark:text-n500">
-             Welcome! Scan and redeem restaurant vouchers quickly, verify guests, and keep your check-ins running smoothly.
-        </Text>
+        <View className="px-6 pt-6 pb-16">
+          <Text className="text-sm text-n400 dark:text-n500">
+            Welcome! Scan and redeem restaurant vouchers quickly, verify guests,
+            and keep your check-ins running smoothly.
+          </Text>
           <View className="pt-7">
             <FormField
               isTitle={true}
@@ -278,9 +274,8 @@ const SignIn = () => {
               compact
             />
           </View>
-        </View>
 
-        <View className="pt-12 px-6 pb-8">
+        <View className="pt-12 pb-8">
           <View className="pb-7">
             <TouchableOpacity
               onPress={handleSignIn}
@@ -295,6 +290,7 @@ const SignIn = () => {
               )}
             </TouchableOpacity>
           </View>
+        </View>
         </View>
       </ScrollView>
 
@@ -344,7 +340,7 @@ const SignIn = () => {
             </Text>
             <TouchableOpacity
               onPress={() => setLoginErrorVisible(false)}
-              style={[styles.errorButton, { backgroundColor: primary }]}
+              style={[styles.errorButton, { backgroundColor: BRAND_BLUE }]}
               activeOpacity={0.85}
             >
               <Text style={styles.errorButtonText}>OK</Text>

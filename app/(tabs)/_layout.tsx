@@ -1,3 +1,4 @@
+import { BRAND_BLUE } from "@/constants/Colors";
 import { useAppSelector } from "@/store/hooks";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
@@ -12,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scannerTrigger } from "../../utils/scannerTrigger";
 
-const PRIMARY = "#6C3BF5";
+const PRIMARY = BRAND_BLUE;
 const CIRCLE_SIZE = 56;
 const TAB_BAR_HEIGHT = 52;
 
@@ -122,10 +123,10 @@ function CustomTabBar({ state, navigation }: any) {
 
   return (
     <View style={[styles.outer, { height: totalHeight }]}>
-      {/* Purple bar – starts below the circle area */}
+      {/* Tab bar background – same blue as wave header */}
       <View
         style={[
-          styles.purpleBar,
+          styles.tabBarBg,
           {
             top: CIRCLE_SIZE / 2,
             paddingBottom: bottomPad,
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
   outer: {
     width: "100%",
   },
-  purpleBar: {
+  tabBarBg: {
     position: "absolute",
     left: 0,
     right: 0,

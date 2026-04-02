@@ -1,3 +1,4 @@
+import { BRAND_BLUE } from "@/constants/Colors";
 import { useWindowDimensions, StyleSheet } from "react-native";
 import React from "react";
 import Animated, {
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#613BFF",
+    backgroundColor: BRAND_BLUE,
     marginHorizontal: 6,
   },
 });
