@@ -1,7 +1,7 @@
 const onBoardingSliderImg1 = require("../assets/images/img-1.png");
-const onBoardingSliderImg2 = require("../assets/images/img-3.png");
-const onBoardingSliderImg3 = require("../assets/images/img-4.png");
-const onBoardingSliderImg4 = require("../assets/images/img-2.png");
+const onBoardingSliderImg2 = require("../assets/images/img-2.png");
+const onBoardingSliderImg3 = require("../assets/images/img-3.png");
+const onBoardingSliderImg4 = require("../assets/images/img-4.png");
 
 export const onbordingSliderData = [
   {
