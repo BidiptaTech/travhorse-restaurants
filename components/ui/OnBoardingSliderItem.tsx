@@ -1,5 +1,4 @@
 import {
-  Image,
   Text,
   View,
   useWindowDimensions,
@@ -13,7 +12,6 @@ import Animated, {
   withTiming,
   withDelay,
 } from "react-native-reanimated";
-import dashedCircle from "@/assets/images/dashed-circle.png";
 
 export type ItemProps = {
   id: number;
@@ -48,7 +46,6 @@ const OnBoardingSliderItem = ({ item, idx }: Props) => {
     <View style={[styles.container, { width: SCREEN_WIDTH }]}>
       <View style={styles.imageContainer}>
         <RotateBg />
-        <Image source={dashedCircle} style={styles.dashedCircle} />
         <Animated.Image
           source={item.img}
           style={[styles.phoneImage, animatedStyle]}
@@ -85,11 +82,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: 480,
     paddingTop: 70,
-  },
-  dashedCircle: {
-    position: "absolute",
-    left: 0,
-    top: 150,
   },
   phoneImage: {
     width: "90%",
