@@ -29,18 +29,6 @@ interface TabDef {
 const TABS: TabDef[] = [
   { route: "index", icon: "home-outline", activeIcon: "home", label: "Home" },
   {
-    route: "ongoing",
-    icon: "location-outline",
-    activeIcon: "location",
-    label: "Ongoing",
-  },
-  {
-    route: "upcoming",
-    icon: "briefcase-outline",
-    activeIcon: "briefcase",
-    label: "Upcoming",
-  },
-  {
     route: "accounts",
     icon: "person-outline",
     activeIcon: "person",
@@ -52,7 +40,6 @@ function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 10);
   const totalHeight = CIRCLE_SIZE / 2 + TAB_BAR_HEIGHT + bottomPad;
-  const router = useRouter();
 
   const handleScanVoucher = () => {
     // First navigate to home tab to ensure the scanner is available
@@ -63,9 +50,9 @@ function CustomTabBar({ state, navigation }: any) {
     }, 100);
   };
 
-  // Split tabs into left and right sections for center button
-  const leftTabs = TABS.slice(0, 2); // Home, Ongoing
-  const rightTabs = TABS.slice(2); // Upcoming, Accounts
+  // Home on the left, Accounts on the right, Scan in the center
+  const leftTabs = TABS.slice(0, 1);
+  const rightTabs = TABS.slice(1);
 
   const renderTab = (tab: TabDef, index: number) => {
     const routeIndex = state.routes.findIndex(
@@ -155,7 +142,7 @@ function CustomTabBar({ state, navigation }: any) {
         </TouchableOpacity>
 
         {/* Right tabs */}
-        {rightTabs.map((tab, index) => renderTab(tab, index + 2))}
+        {rightTabs.map((tab) => renderTab(tab, 0))}
       </View>
     </View>
   );
@@ -177,8 +164,8 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="ongoing" />
-      <Tabs.Screen name="upcoming" />
+      <Tabs.Screen name="ongoing" options={{ href: null }} />
+      <Tabs.Screen name="upcoming" options={{ href: null }} />
       <Tabs.Screen name="accounts" />
       <Tabs.Screen name="history" options={{ href: null }} />
     </Tabs>

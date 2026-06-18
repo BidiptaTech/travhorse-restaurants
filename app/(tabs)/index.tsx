@@ -390,6 +390,7 @@ export default function TicketScannerHome() {
             : require("@/assets/images/adaptive-icon2.png")
         }
         onHistoryPress={() => router.push("/(tabs)/history")}
+        onProfilePress={() => router.push("/(tabs)/accounts")}
       />
 
       <ScrollView

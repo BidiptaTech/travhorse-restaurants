@@ -44,6 +44,8 @@ export type WaveScreenHeaderProps = {
   onHistoryPress?: () => void;
   /** Default true when `onHistoryPress` is passed. */
   showHistoryButton?: boolean;
+  /** Opens account/profile screen when avatar (and name) is pressed. */
+  onProfilePress?: () => void;
   /** When true, shows back control (ignored when `showProfile`). Defaults true when `title` is set and not profile. */
   showBackButton?: boolean;
   onBackPress?: () => void;
@@ -59,6 +61,7 @@ export function WaveScreenHeader({
   showNotificationButton,
   onHistoryPress,
   showHistoryButton,
+  onProfilePress,
   showBackButton: showBackButtonProp,
   onBackPress,
 }: WaveScreenHeaderProps) {
@@ -101,7 +104,15 @@ export function WaveScreenHeader({
       >
         <View className="w-full flex-row justify-between items-center">
           {showProfile ? (
-            <View className="flex-row items-center flex-1 pr-3">
+            <Pressable
+              className="flex-row items-center flex-1 pr-3"
+              onPress={onProfilePress}
+              disabled={!onProfilePress}
+              hitSlop={4}
+              style={({ pressed }) =>
+                onProfilePress && pressed ? { opacity: 0.85 } : undefined
+              }
+            >
               {userAvatarSource != null && !imageLoadError ? (
                 <Image
                   source={userAvatarSource}
@@ -130,7 +141,7 @@ export function WaveScreenHeader({
                   {userName}
                 </Text>
               </View>
-            </View>
+            </Pressable>
           ) : (
             <View className="flex-row items-center flex-1 pr-3 min-h-[44px]">
               {showBackButton ? (
